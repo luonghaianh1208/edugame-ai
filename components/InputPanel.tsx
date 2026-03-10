@@ -1,14 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Zap, BookOpen, Target, Clock, AlignLeft, ChevronDown, Loader2, Sparkles } from "lucide-react";
+import { Zap, BookOpen, Target, AlignLeft, ChevronDown, Loader2, Sparkles, Timer, Star, Gift, Flame } from "lucide-react";
 
 const GAME_TYPES = [
-  { value: "quiz", label: "🎯 Trắc nghiệm (Quiz)", desc: "4 đáp án, timer, điểm số" },
-  { value: "matching", label: "🔗 Ghép cặp (Matching)", desc: "Click để ghép thuật ngữ" },
-  { value: "memory", label: "🃏 Lật thẻ (Memory Card)", desc: "Tìm cặp thẻ giống nhau" },
-  { value: "crossword", label: "🔤 Ô chữ (Crossword)", desc: "Điền vào ô chữ" },
-  { value: "reaction", label: "⛓️ Sắp xếp thứ tự", desc: "Sắp xếp chuỗi đúng thứ tự" },
+  { value: "quiz", label: "🎯 Trắc nghiệm", desc: "4 đáp án, timer, điểm số" },
+  { value: "matching", label: "🔗 Ghép cặp", desc: "Click ghép thuật ngữ - định nghĩa" },
+  { value: "memory", label: "🃏 Lật thẻ nhớ", desc: "Tìm cặp thẻ giống nhau" },
+  { value: "crossword", label: "🔤 Ô chữ", desc: "Điền từ vào ô chữ" },
+  { value: "reaction", label: "⛓️ Sắp xếp thứ tự", desc: "Click chọn đúng thứ tự" },
+  { value: "wordsearch", label: "🔍 Tìm từ ẩn", desc: "Tìm từ trong bảng chữ cái" },
+  { value: "fillblank", label: "✏️ Điền vào chỗ trống", desc: "Chọn/gõ từ còn thiếu" },
+  { value: "truefalse", label: "✅ Đúng hay Sai", desc: "Nhanh tay quyết định đúng/sai" },
 ];
 
 const DIFFICULTIES = [
@@ -17,11 +20,19 @@ const DIFFICULTIES = [
   { value: "hard", label: "💀 Khó", color: "#f85149" },
 ];
 
+export interface GameParams {
+  topic: string;
+  gameType: string;
+  questionCount: number;
+  difficulty: string;
+  useTimer: boolean;
+  useScoring: boolean;
+  rewardPenalty: "none" | "points" | "time" | "both";
+  description?: string;
+}
+
 interface InputPanelProps {
-  onGenerate: (params: {
-    topic: string; gameType: string; questionCount: number;
-    difficulty: string; timePerQuestion?: number; description?: string;
-  }) => void;
+  onGenerate: (params: GameParams) => void;
   isGenerating: boolean;
 }
 
@@ -30,19 +41,41 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
   const [gameType, setGameType] = useState("quiz");
   const [questionCount, setQuestionCount] = useState(10);
   const [difficulty, setDifficulty] = useState("medium");
-  const [timePerQuestion, setTimePerQuestion] = useState<number | undefined>(20);
   const [useTimer, setUseTimer] = useState(true);
+  const [useScoring, setUseScoring] = useState(true);
+  const [rewardPenalty, setRewardPenalty] = useState<"none" | "points" | "time" | "both">("points");
   const [description, setDescription] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!topic.trim()) return;
-    onGenerate({ topic: topic.trim(), gameType, questionCount, difficulty, timePerQuestion: useTimer ? timePerQuestion : undefined, description: description.trim() || undefined });
+    onGenerate({
+      topic: topic.trim(), gameType, questionCount, difficulty,
+      useTimer, useScoring, rewardPenalty,
+      description: description.trim() || undefined,
+    });
   }
 
   const selectedGame = GAME_TYPES.find(g => g.value === gameType);
   const selectedDiff = DIFFICULTIES.find(d => d.value === difficulty);
+
+  // Toggle helper
+  const Toggle = ({ value, onChange, disabled }: { value: boolean; onChange: () => void; disabled?: boolean }) => (
+    <button type="button" onClick={onChange} disabled={disabled}
+      style={{
+        width: 40, height: 22, borderRadius: 11, border: "none", cursor: disabled ? "not-allowed" : "pointer",
+        background: value ? "var(--accent-blue)" : "var(--border)",
+        position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <span style={{
+        position: "absolute", top: 3, left: value ? 20 : 3,
+        width: 16, height: 16, borderRadius: "50%", background: "white",
+        transition: "left 0.2s",
+      }} />
+    </button>
+  );
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--bg-secondary)" }}>
@@ -65,12 +98,12 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
       <form
         onSubmit={handleSubmit}
         className="scroll-area"
-        style={{ flex: 1, padding: "16px 14px", display: "flex", flexDirection: "column", gap: 14, overflowY: "auto" }}
+        style={{ flex: 1, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 13, overflowY: "auto" }}
       >
         {/* Topic */}
         <div>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 7 }}>
-            <BookOpen size={13} /> CHỦ ĐỀ BÀI HỌC *
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 6, letterSpacing: "0.05em" }}>
+            <BookOpen size={12} /> CHỦ ĐỀ BÀI HỌC *
           </label>
           <textarea
             className="input-field"
@@ -78,64 +111,61 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
             onChange={e => setTopic(e.target.value)}
             placeholder="Ví dụ: phản ứng oxi hóa khử, phương trình bậc hai, chiến tranh thế giới thứ 2..."
             rows={3}
-            style={{ resize: "vertical", minHeight: 72 }}
+            style={{ resize: "vertical", minHeight: 72, fontSize: 13 }}
             required
           />
         </div>
 
         {/* Game Type */}
         <div>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 7 }}>
-            <Target size={13} /> LOẠI TRÒ CHƠI *
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 6, letterSpacing: "0.05em" }}>
+            <Target size={12} /> LOẠI TRÒ CHƠI *
           </label>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5 }}>
             {GAME_TYPES.map(gt => (
               <label
                 key={gt.value}
                 style={{
-                  display: "flex", alignItems: "center", gap: 10, padding: "9px 12px",
+                  display: "flex", flexDirection: "column", gap: 2, padding: "8px 10px",
                   borderRadius: 8, cursor: "pointer",
-                  background: gameType === gt.value ? "rgba(56,139,253,0.1)" : "var(--bg-tertiary)",
+                  background: gameType === gt.value ? "rgba(56,139,253,0.12)" : "var(--bg-tertiary)",
                   border: `1px solid ${gameType === gt.value ? "rgba(56,139,253,0.5)" : "var(--border)"}`,
-                  transition: "all 0.2s",
+                  transition: "all 0.15s",
                 }}
               >
                 <input type="radio" name="gameType" value={gt.value} checked={gameType === gt.value}
                   onChange={e => setGameType(e.target.value)} style={{ display: "none" }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: gameType === gt.value ? "var(--accent-blue)" : "var(--text-primary)", flex: 1 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: gameType === gt.value ? "var(--accent-blue)" : "var(--text-primary)" }}>
                   {gt.label}
                 </span>
-                <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{gt.desc}</span>
+                <span style={{ fontSize: 10, color: "var(--text-muted)", lineHeight: 1.3 }}>{gt.desc}</span>
               </label>
             ))}
           </div>
         </div>
 
-        {/* Question Count + Difficulty */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {/* Count + Difficulty */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 7 }}>
-              SỐ CÂU HỎI
+            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 6, letterSpacing: "0.05em" }}>
+              SỐ CÂU / CẶP
             </label>
-            <select className="input-field" value={questionCount} onChange={e => setQuestionCount(Number(e.target.value))}>
-              {[5, 8, 10, 12, 15, 20].map(n => <option key={n} value={n}>{n} câu</option>)}
+            <select className="input-field" value={questionCount} onChange={e => setQuestionCount(Number(e.target.value))} style={{ fontSize: 13 }}>
+              {[5, 8, 10, 12, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 7 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 6, letterSpacing: "0.05em" }}>
               MỨC ĐỘ KHÓ
             </label>
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", gap: 4 }}>
               {DIFFICULTIES.map(d => (
-                <button
-                  key={d.value} type="button"
-                  onClick={() => setDifficulty(d.value)}
+                <button key={d.value} type="button" onClick={() => setDifficulty(d.value)}
                   style={{
-                    flex: 1, padding: "8px 4px", borderRadius: 7, fontSize: 11, fontWeight: 600,
+                    flex: 1, padding: "7px 2px", borderRadius: 7, fontSize: 11, fontWeight: 600,
                     cursor: "pointer", border: `1px solid ${difficulty === d.value ? d.color : "var(--border)"}`,
                     background: difficulty === d.value ? `${d.color}22` : "var(--bg-tertiary)",
-                    color: difficulty === d.value ? d.color : "var(--text-muted)",
-                    transition: "all 0.2s",
+                    color: difficulty === d.value ? d.color : "var(--text-muted)", transition: "all 0.15s",
                   }}
                 >
                   {d.label.split(" ")[0]}
@@ -145,59 +175,127 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
           </div>
         </div>
 
-        {/* Timer toggle */}
-        {(gameType === "quiz") && (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 12,
-            padding: "10px 12px", background: "var(--bg-tertiary)",
-            borderRadius: 8, border: "1px solid var(--border)",
-          }}>
-            <Clock size={14} color="var(--text-secondary)" />
-            <span style={{ fontSize: 13, flex: 1, color: "var(--text-primary)" }}>Đếm ngược thời gian</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setUseTimer(!useTimer)}
-                style={{
-                  width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer",
-                  background: useTimer ? "var(--accent-blue)" : "var(--border)",
-                  position: "relative", transition: "background 0.2s",
-                }}
-              >
-                <span style={{
-                  position: "absolute", top: 3, left: useTimer ? 20 : 3,
-                  width: 16, height: 16, borderRadius: "50%", background: "white",
-                  transition: "left 0.2s",
-                }} />
-              </button>
-              {useTimer && (
-                <input
-                  type="number"
-                  className="input-field"
-                  value={timePerQuestion}
-                  onChange={e => setTimePerQuestion(Number(e.target.value))}
-                  min={5} max={120}
-                  style={{ width: 64, textAlign: "center" }}
-                />
-              )}
-              {useTimer && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>giây</span>}
-            </div>
+        {/* ===== GAME MECHANICS SECTION ===== */}
+        <div style={{
+          background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border)",
+          overflow: "hidden",
+        }}>
+          <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border)", background: "rgba(56,139,253,0.05)" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-blue)", letterSpacing: "0.05em" }}>
+              ⚙️ CƠ CHẾ TRÒ CHƠI
+            </span>
           </div>
-        )}
+
+          <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
+            {/* Timer toggle */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+                background: useTimer ? "rgba(56,139,253,0.15)" : "var(--bg-tertiary)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: `1px solid ${useTimer ? "rgba(56,139,253,0.3)" : "var(--border)"}`,
+                transition: "all 0.2s",
+              }}>
+                <Timer size={13} color={useTimer ? "var(--accent-blue)" : "var(--text-muted)"} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500 }}>Bấm giờ</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                  {useTimer ? "AI tự chọn: theo câu hoặc toàn game" : "Không giới hạn thời gian"}
+                </div>
+              </div>
+              <Toggle value={useTimer} onChange={() => setUseTimer(!useTimer)} />
+            </div>
+
+            {/* Scoring toggle */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+                background: useScoring ? "rgba(210,153,34,0.15)" : "var(--bg-tertiary)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: `1px solid ${useScoring ? "rgba(210,153,34,0.3)" : "var(--border)"}`,
+                transition: "all 0.2s",
+              }}>
+                <Star size={13} color={useScoring ? "var(--accent-orange)" : "var(--text-muted)"} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500 }}>Tính điểm</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                  {useScoring ? "AI tự thiết kế hệ thống điểm" : "Không tính điểm"}
+                </div>
+              </div>
+              <Toggle value={useScoring} onChange={() => setUseScoring(!useScoring)} />
+            </div>
+
+            {/* Reward/Penalty */}
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: 7, flexShrink: 0, marginTop: 1,
+                background: rewardPenalty !== "none" ? "rgba(163,113,247,0.15)" : "var(--bg-tertiary)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: `1px solid ${rewardPenalty !== "none" ? "rgba(163,113,247,0.3)" : "var(--border)"}`,
+                transition: "all 0.2s",
+              }}>
+                <Gift size={13} color={rewardPenalty !== "none" ? "#a371f7" : "var(--text-muted)"} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500, marginBottom: 6 }}>Thưởng / Phạt</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+                  {[
+                    { value: "none", label: "🚫 Không" },
+                    { value: "points", label: "⭐ Điểm" },
+                    { value: "time", label: "⏱️ Thời gian" },
+                    { value: "both", label: "🎁 Cả hai" },
+                  ].map(opt => (
+                    <button key={opt.value} type="button" onClick={() => setRewardPenalty(opt.value as typeof rewardPenalty)}
+                      disabled={!useScoring && (opt.value === "points" || opt.value === "both")}
+                      style={{
+                        padding: "5px 6px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                        cursor: "pointer", transition: "all 0.15s",
+                        border: `1px solid ${rewardPenalty === opt.value ? "rgba(163,113,247,0.6)" : "var(--border)"}`,
+                        background: rewardPenalty === opt.value ? "rgba(163,113,247,0.15)" : "var(--bg-tertiary)",
+                        color: rewardPenalty === opt.value ? "#a371f7" : "var(--text-muted)",
+                        opacity: (!useScoring && (opt.value === "points" || opt.value === "both")) ? 0.4 : 1,
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.4 }}>
+                  {rewardPenalty === "points" && "Trả lời đúng +điểm, sai -điểm"}
+                  {rewardPenalty === "time" && "Đúng+thêm giờ, sai-bớt giờ"}
+                  {rewardPenalty === "both" && "AI kết hợp cả điểm lẫn thời gian"}
+                  {rewardPenalty === "none" && "Không có phần thưởng hay hình phạt"}
+                </div>
+              </div>
+            </div>
+
+            {/* Combo/streak hint */}
+            {useScoring && rewardPenalty !== "none" && (
+              <div className="fade-in" style={{
+                padding: "6px 10px", borderRadius: 7, fontSize: 11, color: "#a371f7",
+                background: "rgba(163,113,247,0.08)", border: "1px solid rgba(163,113,247,0.2)",
+                display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <Flame size={12} /> AI sẽ thêm combo streak & hiệu ứng khi trả lời liên tiếp đúng
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Advanced toggle */}
         <button
           type="button"
           onClick={() => setShowAdvanced(!showAdvanced)}
           style={{
-            display: "flex", alignItems: "center", gap: 8, background: "none", border: "none",
-            color: "var(--text-secondary)", cursor: "pointer", fontSize: 12, fontWeight: 600,
-            padding: "4px 0",
+            display: "flex", alignItems: "center", gap: 7, background: "none", border: "none",
+            color: "var(--text-secondary)", cursor: "pointer", fontSize: 12, fontWeight: 600, padding: "2px 0",
           }}
         >
-          <ChevronDown size={14} style={{ transform: showAdvanced ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
-          <AlignLeft size={13} />
-          {showAdvanced ? "Ẩn" : "Mô tả thêm (tùy chọn)"}
+          <ChevronDown size={13} style={{ transform: showAdvanced ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+          <AlignLeft size={12} />
+          {showAdvanced ? "Ẩn" : "Mô tả bổ sung (tùy chọn)"}
         </button>
 
         {showAdvanced && (
@@ -206,23 +304,23 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
               className="input-field"
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="Mô tả thêm yêu cầu đặc biệt: hiệu ứng, luật chơi, phong cách, v.v..."
+              placeholder="Phong cách, màu sắc, âm nhạc nền, nhân vật, yêu cầu đặc biệt..."
               rows={3}
               style={{ resize: "vertical" }}
             />
           </div>
         )}
 
-        {/* Selected summary */}
+        {/* Preview summary */}
         {topic && (
-          <div className="glass-card fade-in" style={{
-            padding: "10px 14px", fontSize: 12,
-            borderColor: "rgba(56,139,253,0.2)",
-          }}>
-            <div style={{ color: "var(--text-secondary)", marginBottom: 4, fontWeight: 600 }}>Preview yêu cầu:</div>
-            <div style={{ color: "var(--text-primary)" }}>
-              {selectedGame?.label} về <strong>"{topic}"</strong> — {questionCount} câu, {selectedDiff?.label}
-              {useTimer && gameType === "quiz" && `, ${timePerQuestion}s/câu`}
+          <div className="glass-card fade-in" style={{ padding: "10px 13px", fontSize: 12, borderColor: "rgba(56,139,253,0.2)" }}>
+            <div style={{ color: "var(--text-secondary)", marginBottom: 4, fontWeight: 600, fontSize: 11 }}>PREVIEW YÊU CẦU:</div>
+            <div style={{ color: "var(--text-primary)", lineHeight: 1.6 }}>
+              {selectedGame?.label} về <strong>"{topic}"</strong><br />
+              {questionCount} câu · {selectedDiff?.label}
+              {useTimer && " · ⏱️ Bấm giờ"}
+              {useScoring && " · ⭐ Tính điểm"}
+              {rewardPenalty !== "none" && ` · 🎁 Thưởng/phạt ${rewardPenalty}`}
             </div>
           </div>
         )}
@@ -232,12 +330,12 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
           type="submit"
           className="btn-glow"
           disabled={isGenerating || !topic.trim()}
-          style={{ padding: "13px", fontSize: 15, borderRadius: 10, marginTop: 4 }}
+          style={{ padding: "13px", fontSize: 15, borderRadius: 10 }}
         >
           {isGenerating ? (
             <span style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
-              <Loader2 size={16} className="spinner" style={{ animation: "spin 0.8s linear infinite", border: "none" }} />
-              AI đang tạo game...
+              <Loader2 size={16} style={{ animation: "spin 0.8s linear infinite" }} />
+              AI đang thiết kế game...
             </span>
           ) : (
             <span style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>

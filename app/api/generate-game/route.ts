@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getGameGeneratorPrompt } from "@/lib/prompts/gameGeneratorPrompt";
+import { getGameGeneratorPrompt, GameGeneratorParams } from "@/lib/prompts/gameGeneratorPrompt";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { topic, gameType, questionCount, difficulty, timePerQuestion, description, apiKey } = body;
+    const { topic, gameType, questionCount, difficulty, useTimer, useScoring, rewardPenalty, description, apiKey } = body;
 
     if (!apiKey) {
       return NextResponse.json({ error: "Chưa cấu hình API key. Vui lòng vào cài đặt để nhập API key." }, { status: 401 });
@@ -19,16 +19,25 @@ export async function POST(request: NextRequest) {
       model: "gemini-2.0-flash",
       generationConfig: {
         maxOutputTokens: 8192,
-        temperature: 0.7,
+        temperature: 0.8,
       },
     });
 
-    const systemPrompt = getGameGeneratorPrompt({ topic, gameType, questionCount, difficulty, timePerQuestion, description });
+    const params: GameGeneratorParams = {
+      topic, gameType, questionCount: Number(questionCount),
+      difficulty: difficulty || "medium",
+      useTimer: useTimer !== false,
+      useScoring: useScoring !== false,
+      rewardPenalty: rewardPenalty || "points",
+      description,
+    };
+
+    const systemPrompt = getGameGeneratorPrompt(params);
 
     const result = await model.generateContent(systemPrompt);
     let code = result.response.text().trim();
 
-    // Clean up markdown fences if AI wraps in them
+    // Strip markdown fences if AI wraps in them
     code = code.replace(/^```html?\s*/i, "").replace(/\s*```\s*$/, "").trim();
 
     if (!code.toLowerCase().includes("<!doctype html")) {
@@ -38,8 +47,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ code, success: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Lỗi không xác định";
-    if (message.includes("API key")) {
-      return NextResponse.json({ error: "API key không hợp lệ hoặc hết hạn." }, { status: 401 });
+    if (message.toLowerCase().includes("api key")) {
+      return NextResponse.json({ error: "API key không hợp lệ hoặc hết quota." }, { status: 401 });
     }
     return NextResponse.json({ error: `Lỗi tạo game: ${message}` }, { status: 500 });
   }

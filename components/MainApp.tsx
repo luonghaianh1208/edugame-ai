@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { Settings, GraduationCap, Gamepad2, Github, Sparkles } from "lucide-react";
-import InputPanel from "./InputPanel";
+import InputPanel, { GameParams } from "./InputPanel";
 import CodePanel from "./CodePanel";
 import PreviewPanel from "./PreviewPanel";
 import ChatPanel, { ChatMessage } from "./ChatPanel";
@@ -41,10 +41,7 @@ export default function MainApp() {
     showToast("API key đã được lưu thành công!", "success");
   }
 
-  const handleGenerate = useCallback(async (params: {
-    topic: string; gameType: string; questionCount: number;
-    difficulty: string; timePerQuestion?: number; description?: string;
-  }) => {
+  const handleGenerate = useCallback(async (params: GameParams) => {
     if (!apiKey) {
       setShowKeyModal(true);
       return;
