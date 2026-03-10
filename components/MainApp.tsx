@@ -300,7 +300,7 @@ export default function MainApp() {
             <span style={{ fontSize: 15, fontWeight: 400, color: "var(--accent-blue)" }}> AI</span>
           </div>
           <span className="badge badge-blue" style={{ marginLeft: 4, fontSize: 10 }}>
-            <Sparkles size={9} /> gemini-2.0-flash
+            <Sparkles size={9} /> gemini-3-flash-preview
           </span>
         </div>
 
