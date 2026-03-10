@@ -71,7 +71,7 @@ export default function ChatPanel({ messages, onSend, onApplyCode, isLoading, ha
       </div>
 
       {/* Messages */}
-      <div className="scroll-area" style={{ flex: 1, padding: "12px 12px 8px" }}>
+      <div className="scroll-area" style={{ flex: 1, minHeight: 0, padding: "12px 12px 8px" }}>
         {messages.length === 0 ? (
           <div style={{ textAlign: "center", padding: "24px 16px" }}>
             <div style={{

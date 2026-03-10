@@ -16,10 +16,22 @@ export default function CodePanel({ code, onChange, isStreaming }: CodePanelProp
   const [copied, setCopied] = useState(false);
   const editorRef = useRef<unknown>(null);
 
-  function handleCopy() {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for HTTP pages
+      const el = document.createElement("textarea");
+      el.value = code;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   }
 
   function handleDownload() {

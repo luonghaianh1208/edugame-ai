@@ -118,8 +118,11 @@ export default function MainApp() {
         return;
       }
 
+      // Check body exists
+      if (!res.body) throw new Error("Không nhận được dữ liệu stream từ server.");
+
       // ── Stream reading ──────────────────────────────────────────
-      const reader = res.body!.getReader();
+      const reader = res.body.getReader();
       const decoder = new TextDecoder("utf-8");
       let accumulated = "";
 
@@ -128,15 +131,15 @@ export default function MainApp() {
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
+        accumulated += chunk;
 
-        // Check for stream error signal
-        if (chunk.includes("__STREAM_ERROR__:")) {
-          const errMsg = chunk.split("__STREAM_ERROR__:")[1] || "Lỗi stream";
+        // Check for stream error signal in ACCUMULATED text (not just one chunk)
+        // because the error token may be split across chunk boundaries
+        if (accumulated.includes("__STREAM_ERROR__:")) {
+          const errMsg = accumulated.split("__STREAM_ERROR__:")[1]?.split("\n")[0] || "Lỗi stream";
           showToast(`Lỗi: ${errMsg}`, "error");
           break;
         }
-
-        accumulated += chunk;
 
         // Strip leading markdown fences from the accumulated buffer
         const cleaned = accumulated
