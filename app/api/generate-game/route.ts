@@ -8,23 +8,21 @@ export async function POST(request: NextRequest) {
     const { topic, gameType, questionCount, difficulty, useTimer, useScoring, rewardPenalty, description, apiKey } = body;
 
     if (!apiKey) {
-      return NextResponse.json({ error: "Chưa cấu hình API key. Vui lòng vào cài đặt để nhập API key." }, { status: 401 });
+      return NextResponse.json({ error: "Chưa cấu hình API key." }, { status: 401 });
     }
     if (!topic || !gameType || !questionCount) {
-      return NextResponse.json({ error: "Thiếu thông tin bắt buộc: chủ đề, loại game, số câu hỏi" }, { status: 400 });
+      return NextResponse.json({ error: "Thiếu: chủ đề, loại game, số câu" }, { status: 400 });
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
       model: "gemini-2.0-flash",
-      generationConfig: {
-        maxOutputTokens: 8192,
-        temperature: 0.8,
-      },
+      generationConfig: { maxOutputTokens: 8192, temperature: 0.8 },
     });
 
     const params: GameGeneratorParams = {
-      topic, gameType, questionCount: Number(questionCount),
+      topic, gameType,
+      questionCount: Number(questionCount),
       difficulty: difficulty || "medium",
       useTimer: useTimer !== false,
       useScoring: useScoring !== false,
@@ -32,24 +30,45 @@ export async function POST(request: NextRequest) {
       description,
     };
 
-    const systemPrompt = getGameGeneratorPrompt(params);
+    const prompt = getGameGeneratorPrompt(params);
 
-    const result = await model.generateContent(systemPrompt);
-    let code = result.response.text().trim();
+    // ── Streaming response ───────────────────────────────────────────
+    const streamResult = await model.generateContentStream(prompt);
 
-    // Strip markdown fences if AI wraps in them
-    code = code.replace(/^```html?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+    const encoder = new TextEncoder();
 
-    if (!code.toLowerCase().includes("<!doctype html")) {
-      return NextResponse.json({ error: "AI không trả về HTML hợp lệ. Hãy thử lại." }, { status: 500 });
-    }
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of streamResult.stream) {
+            const text = chunk.text();
+            if (text) {
+              // Send each chunk as a Server-Sent Events style data line
+              controller.enqueue(encoder.encode(text));
+            }
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Stream error";
+          controller.enqueue(encoder.encode(`\n__STREAM_ERROR__:${msg}`));
+        } finally {
+          controller.close();
+        }
+      },
+    });
 
-    return NextResponse.json({ code, success: true });
+    return new Response(readableStream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-cache",
+        "Transfer-Encoding": "chunked",
+      },
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Lỗi không xác định";
     if (message.toLowerCase().includes("api key")) {
       return NextResponse.json({ error: "API key không hợp lệ hoặc hết quota." }, { status: 401 });
     }
-    return NextResponse.json({ error: `Lỗi tạo game: ${message}` }, { status: 500 });
+    return NextResponse.json({ error: `Lỗi: ${message}` }, { status: 500 });
   }
 }

@@ -9,9 +9,10 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false 
 interface CodePanelProps {
   code: string;
   onChange: (code: string) => void;
+  isStreaming?: boolean;
 }
 
-export default function CodePanel({ code, onChange }: CodePanelProps) {
+export default function CodePanel({ code, onChange, isStreaming }: CodePanelProps) {
   const [copied, setCopied] = useState(false);
   const editorRef = useRef<unknown>(null);
 
@@ -60,6 +61,20 @@ export default function CodePanel({ code, onChange }: CodePanelProps) {
           {code && (
             <span className="badge badge-blue" style={{ fontSize: 10 }}>
               <FileCode size={10} /> {lineCount} dòng
+            </span>
+          )}
+          {isStreaming && (
+            <span className="fade-in" style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "2px 9px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+              background: "rgba(56,139,253,0.15)",
+              border: "1px solid rgba(56,139,253,0.4)",
+              color: "var(--accent-blue)",
+              animation: "pulse-glow 1.2s ease-in-out infinite",
+            }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent-blue)",
+                animation: "pulse-glow 0.8s ease-in-out infinite" }} />
+              ⚡ Đang stream...
             </span>
           )}
 

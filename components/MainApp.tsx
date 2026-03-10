@@ -47,22 +47,64 @@ export default function MainApp() {
       return;
     }
     setIsGenerating(true);
+    setCode(""); // Clear previous code
     setChatMessages([]);
+    setActiveTab("code"); // Switch to code tab so user sees it stream in
+
     try {
       const res = await fetch("/api/generate-game", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...params, apiKey }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) {
+
+      // Handle non-streaming error responses (JSON)
+      if (!res.ok) {
+        const data = await res.json();
         showToast(data.error || "Lỗi tạo game", "error");
         return;
       }
-      setCode(data.code);
-      setActiveTab("preview");
-      showToast("Game đã được tạo thành công! 🎉", "success");
-    } catch (err) {
+
+      // ── Stream reading ──────────────────────────────────────────
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let accumulated = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+
+        // Check for stream error signal
+        if (chunk.includes("__STREAM_ERROR__:")) {
+          const errMsg = chunk.split("__STREAM_ERROR__:")[1] || "Lỗi stream";
+          showToast(`Lỗi: ${errMsg}`, "error");
+          break;
+        }
+
+        accumulated += chunk;
+
+        // Strip leading markdown fences from the accumulated buffer
+        const cleaned = accumulated
+          .replace(/^```html?\s*/i, "")
+          .replace(/^```\s*/i, "");
+
+        setCode(cleaned);
+      }
+
+      // Final cleanup of trailing backtick fence
+      setCode(prev => prev.replace(/\s*```\s*$/, "").trim());
+
+      // Switch to preview once streaming completes (if valid HTML)
+      if (accumulated.toLowerCase().includes("<!doctype html")) {
+        showToast("Game đã được tạo thành công! 🎉", "success");
+        setTimeout(() => setActiveTab("preview"), 600);
+      } else {
+        showToast("AI không trả về HTML hợp lệ. Hãy thử lại.", "error");
+        setCode("");
+      }
+    } catch {
       showToast("Lỗi kết nối server. Kiểm tra lại kết nối mạng.", "error");
     } finally {
       setIsGenerating(false);
@@ -196,7 +238,7 @@ export default function MainApp() {
         {/* Panel 2: Code or Preview (tabbed) */}
         <div style={{ background: "var(--bg-secondary)", overflow: "hidden", position: "relative" }}>
           <div style={{ position: "absolute", inset: 0, opacity: activeTab === "code" ? 1 : 0, pointerEvents: activeTab === "code" ? "auto" : "none", zIndex: activeTab === "code" ? 1 : 0 }}>
-            <CodePanel code={code} onChange={setCode} />
+            <CodePanel code={code} onChange={setCode} isStreaming={isGenerating} />
           </div>
           <div style={{ position: "absolute", inset: 0, opacity: activeTab === "preview" ? 1 : 0, pointerEvents: activeTab === "preview" ? "auto" : "none", zIndex: activeTab === "preview" ? 1 : 0 }}>
             <PreviewPanel code={code} />
@@ -206,7 +248,7 @@ export default function MainApp() {
         {/* Panel 3: The other panel (preview or code – always visible on wider screens) */}
         <div style={{ background: "var(--bg-secondary)", overflow: "hidden" }}>
           {activeTab === "preview" ? (
-            <CodePanel code={code} onChange={setCode} />
+            <CodePanel code={code} onChange={setCode} isStreaming={isGenerating} />
           ) : (
             <PreviewPanel code={code} />
           )}
