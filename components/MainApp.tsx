@@ -95,14 +95,11 @@ export default function MainApp() {
   }
 
   const handleGenerate = useCallback(async (params: GameParams) => {
-    if (!apiKey) {
-      setShowKeyModal(true);
-      return;
-    }
+    if (!apiKey) { setShowKeyModal(true); return; }
     setIsGenerating(true);
-    setCode(""); // Clear previous code
+    setCode("");
     setChatMessages([]);
-    setActiveTab("code"); // Switch to code tab so user sees it stream in
+    setActiveTab("code");
 
     try {
       const res = await fetch("/api/generate-game", {
@@ -111,55 +108,22 @@ export default function MainApp() {
         body: JSON.stringify({ ...params, apiKey }),
       });
 
-      // Handle non-streaming error responses (JSON)
+      const data = await res.json();
+
       if (!res.ok) {
-        const data = await res.json();
         showToast(data.error || "Lỗi tạo game", "error");
         return;
       }
 
-      // Check body exists
-      if (!res.body) throw new Error("Không nhận được dữ liệu stream từ server.");
-
-      // ── Stream reading ──────────────────────────────────────────
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let accumulated = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        accumulated += chunk;
-
-        // Check for stream error signal in ACCUMULATED text (not just one chunk)
-        // because the error token may be split across chunk boundaries
-        if (accumulated.includes("__STREAM_ERROR__:")) {
-          const errMsg = accumulated.split("__STREAM_ERROR__:")[1]?.split("\n")[0] || "Lỗi stream";
-          showToast(`Lỗi: ${errMsg}`, "error");
-          break;
-        }
-
-        // Strip leading markdown fences from the accumulated buffer
-        const cleaned = accumulated
-          .replace(/^```html?\s*/i, "")
-          .replace(/^```\s*/i, "");
-
-        setCode(cleaned);
+      if (!data.html) {
+        showToast("AI không trả về game hợp lệ. Hãy thử lại.", "error");
+        return;
       }
 
-      // Final cleanup of trailing backtick fence
-      setCode(prev => prev.replace(/\s*```\s*$/, "").trim());
+      setCode(data.html);
+      showToast(`🎮 Game đã tạo xong! ${data.questionCount} câu hỏi`, "success");
+      setTimeout(() => setActiveTab("preview"), 400);
 
-      // Switch to preview once streaming completes (if valid HTML)
-      if (accumulated.toLowerCase().includes("<!doctype html")) {
-        showToast("Game đã được tạo thành công! 🎉", "success");
-        setTimeout(() => setActiveTab("preview"), 600);
-      } else {
-        showToast("AI không trả về HTML hợp lệ. Hãy thử lại.", "error");
-        setCode("");
-      }
     } catch {
       showToast("Lỗi kết nối server. Kiểm tra lại kết nối mạng.", "error");
     } finally {

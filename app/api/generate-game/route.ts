@@ -1,69 +1,82 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getGameGeneratorPrompt, GameGeneratorParams } from "@/lib/prompts/gameGeneratorPrompt";
+import { getDataGeneratorPrompt } from "@/lib/prompts/dataGeneratorPrompt";
+import { buildGameHtml, TemplateId, GameQuestion, GameSettings } from "@/lib/templates/index";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { topic, gameType, questionCount, difficulty, useTimer, useScoring, rewardPenalty, description, apiKey } = body;
+    const {
+      topic, templateId, questionCount, difficulty,
+      useTimer, useScoring, rewardPenalty, apiKey
+    } = body;
 
-    if (!apiKey) {
-      return NextResponse.json({ error: "Chưa cấu hình API key." }, { status: 401 });
-    }
-    if (!topic || !gameType || !questionCount) {
-      return NextResponse.json({ error: "Thiếu: chủ đề, loại game, số câu" }, { status: 400 });
-    }
+    if (!apiKey)       return NextResponse.json({ error: "Chưa cấu hình API key." }, { status: 401 });
+    if (!topic)        return NextResponse.json({ error: "Thiếu chủ đề bài học." }, { status: 400 });
+    if (!templateId)   return NextResponse.json({ error: "Chưa chọn template trò chơi." }, { status: 400 });
 
+    const count = Number(questionCount) || 10;
+
+    // 1. Ask AI for JSON data only (not full HTML)
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
       model: "gemini-3-flash-preview",
-      generationConfig: { maxOutputTokens: 65536, temperature: 0.35 },
+      generationConfig: { maxOutputTokens: 8192, temperature: 0.35 },
     });
 
-    const params: GameGeneratorParams = {
-      topic, gameType,
-      questionCount: Number(questionCount),
-      difficulty: difficulty || "medium",
+    const prompt = getDataGeneratorPrompt(templateId, topic, count, difficulty || "medium");
+    const result = await model.generateContent(prompt);
+    const raw = result.response.text().trim();
+
+    // 2. Parse JSON — strip markdown fences if present
+    let jsonStr = raw;
+    const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) jsonStr = fenceMatch[1].trim();
+    // Find the array
+    const arrStart = jsonStr.indexOf("[");
+    const arrEnd   = jsonStr.lastIndexOf("]");
+    if (arrStart === -1 || arrEnd === -1) {
+      return NextResponse.json({ error: "AI không trả về dữ liệu JSON hợp lệ. Hãy thử lại." }, { status: 500 });
+    }
+    jsonStr = jsonStr.slice(arrStart, arrEnd + 1);
+
+    let questions: GameQuestion[];
+    try {
+      questions = JSON.parse(jsonStr);
+    } catch {
+      return NextResponse.json({ error: "Lỗi phân tích dữ liệu câu hỏi. Hãy thử lại." }, { status: 500 });
+    }
+
+    // Validate questions
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return NextResponse.json({ error: "AI trả về không đủ câu hỏi." }, { status: 500 });
+    }
+    questions = questions.filter(q =>
+      q && typeof q.q === "string" &&
+      Array.isArray(q.answers) && q.answers.length === 4 &&
+      typeof q.correct === "number"
+    );
+    if (questions.length === 0) {
+      return NextResponse.json({ error: "Dữ liệu câu hỏi không đúng định dạng." }, { status: 500 });
+    }
+
+    // 3. Inject into template
+    const settings: GameSettings = {
+      topic, difficulty: difficulty || "medium",
       useTimer: useTimer !== false,
       useScoring: useScoring !== false,
       rewardPenalty: rewardPenalty || "points",
-      description,
+      questionCount: questions.length,
     };
 
-    const prompt = getGameGeneratorPrompt(params);
+    const html = buildGameHtml(templateId as TemplateId, questions, settings);
 
-    // ── Streaming response ───────────────────────────────────────────
-    const streamResult = await model.generateContentStream(prompt);
-
-    const encoder = new TextEncoder();
-
-    const readableStream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of streamResult.stream) {
-            const text = chunk.text();
-            if (text) {
-              // Send each chunk as a Server-Sent Events style data line
-              controller.enqueue(encoder.encode(text));
-            }
-          }
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : "Stream error";
-          controller.enqueue(encoder.encode(`\n__STREAM_ERROR__:${msg}`));
-        } finally {
-          controller.close();
-        }
-      },
+    return NextResponse.json({
+      html,
+      questionCount: questions.length,
+      templateId,
     });
 
-    return new Response(readableStream, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "no-cache",
-        "Transfer-Encoding": "chunked",
-      },
-    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Lỗi không xác định";
     if (message.toLowerCase().includes("api key")) {
