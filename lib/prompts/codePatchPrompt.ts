@@ -37,14 +37,39 @@ Phản hồi của bạn PHẢI theo đúng format sau và KHÔNG ĐƯỢC PHÉP
    - Nút Bắt đầu / Start / Play Again phải hoạt động
    - Timer phải clearInterval trước khi start mới
 
-## QUY TẮC SỬA LỖI PHỔ BIẾN
+## LỖI SCOPE PHỔ BIẾN NHẤT - PHẢI BIẾT
+
+LỖI: "startGame is not defined" / "showIntro is not defined"
+NGUYÊN NHÂN: Hàm bị khai báo bên trong callback DOMContentLoaded hoặc IIFE → không ở global scope → onclick không gọi được.
+
+CẤM:
+\`\`\`js
+document.addEventListener('DOMContentLoaded', () => {
+  function startGame() { ... }  // SAI: không global
+});
+(function() { function startGame() { ... } })();  // SAI: IIFE
+const startGame = () => { ... };  // LƯU Ý: const không hoist
+\`\`\`
+
+ĐÚNG:
+\`\`\`js
+// Tất cả hàm khai báo ở top-level (global scope)
+function showIntro() { ... }
+function startGame() { ... }
+function showResult() { ... }
+showIntro(); // Dòng CUỐI CÙNG của script
+\`\`\`
+
+---
+
+## QUY TẮC SỬA LỖI PHỔ BIẾN KHÁC
 
 LỖI: addEventListener gọi trước khi DOM tồn tại
-SỬA: Di chuyển tất cả event listener vào trong hàm khởi tạo được gọi từ DOMContentLoaded
+SỬA: Đặt <script> ở cuối <body>; gọi hàm init ở dòng cuối script
 
 LỖI: getElementById trả về null
-SỬA: Đảm bảo <script> nằm ở cuối <body>, hoặc dùng document.addEventListener('DOMContentLoaded', ...)
+SỬA: Chắc chắn <script> ở cuối <body>; DOM được tạo dynamic trong showIntro() trước khi gán listener
 
-LỖI: Nút bấm không phản hồi
-SỬA: Kiểm tra id của nút và tên function, đảm bảo không có lỗi JS ở trên ngăn code chạy`;
+LỖI: Timer không dừng khi chuyển màn hình
+SỬA: clearInterval(timerId) trong MỌI hàm screen change trước khi setInterval mới`;
 }
