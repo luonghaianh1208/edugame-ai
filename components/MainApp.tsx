@@ -124,27 +124,74 @@ export default function MainApp() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentCode: code, message, apiKey }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setChatMessages(prev => [...prev, { role: "assistant", content: `❌ Lỗi: ${data.error}` }]);
+
+      // Non-streaming error (e.g. 401, 400, 500 JSON)
+      if (!res.ok) {
+        let errMsg = "Lỗi server.";
+        try { const d = await res.json(); errMsg = d.error || errMsg; } catch {}
+        setChatMessages(prev => [...prev, { role: "assistant", content: `❌ ${errMsg}` }]);
         return;
       }
-      const hasCodeUpdate = !!data.code;
+
+      // ── Stream reading ───────────────────────────────────────────
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        fullText += decoder.decode(value, { stream: true });
+      }
+
+      // ── Parse [REPLY] and [CODE]...[/CODE] delimiters ─────────────
+      // Extract reply text
+      const replyMatch = fullText.match(/\[REPLY\]([\s\S]*?)(?=\[CODE\]|$)/i);
+      const replyText = replyMatch ? replyMatch[1].trim() : fullText.trim();
+
+      // Extract code block
+      const codeMatch = fullText.match(/\[CODE\]([\s\S]*?)\[\/CODE\]/i);
+      let patchedCode: string | null = null;
+      if (codeMatch) {
+        patchedCode = codeMatch[1].trim()
+          .replace(/^```html?\s*/i, "")
+          .replace(/\s*```\s*$/, "")
+          .trim();
+        // Validate it's actually HTML
+        if (!patchedCode.toLowerCase().includes("<!doctype html")) {
+          patchedCode = null;
+        }
+      }
+
+      // Check for stream error
+      if (fullText.includes("__CHAT_ERROR__:")) {
+        const errMsg = fullText.split("__CHAT_ERROR__:")[1]?.split("\n")[0] || "Lỗi AI";
+        setChatMessages(prev => [...prev, { role: "assistant", content: `❌ Lỗi AI: ${errMsg}` }]);
+        return;
+      }
+
+      const hasCodeUpdate = !!patchedCode;
       setChatMessages(prev => [...prev, {
         role: "assistant",
-        content: data.reply || "Đã xử lý yêu cầu.",
+        content: replyText || "Đã xử lý yêu cầu.",
         hasCodeUpdate,
       }]);
-      if (data.code) {
-        setCode(data.code);
-        showToast("Code đã được cập nhật!", "success");
+
+      if (patchedCode) {
+        setCode(patchedCode);
+        showToast("Code đã được cập nhật! ✨", "success");
       }
-    } catch {
-      setChatMessages(prev => [...prev, { role: "assistant", content: "❌ Lỗi kết nối. Thử lại sau." }]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Lỗi không xác định";
+      setChatMessages(prev => [...prev, {
+        role: "assistant",
+        content: `❌ Lỗi: ${msg}. Hãy kiểm tra kết nối mạng và thử lại.`,
+      }]);
     } finally {
       setIsChatLoading(false);
     }
   }, [apiKey, code]);
+
 
   const hasKey = !!apiKey;
 

@@ -1,4 +1,7 @@
-export interface GameGeneratorParams {
+const fs = require('fs');
+const path = require('path');
+
+const content = `export interface GameGeneratorParams {
   topic: string;
   gameType: string;
   questionCount: number;
@@ -10,46 +13,46 @@ export interface GameGeneratorParams {
 }
 
 const MECHANIC_GUIDES: Record<string, string> = {
-  quiz: `TIMER: Per-question countdown (20-30s based on difficulty). Beautiful progress bar.
+  quiz: \`TIMER: Per-question countdown (20-30s based on difficulty). Beautiful progress bar.
 SCORING: Correct=100pts + speed bonus (0-50pts). Wrong=-20pts (never below 0).
 COMBO: 3+ correct in a row -> "COMBO x3 fire" and next points doubled.
-UI: Large A/B/C/D buttons with colors, flip animation on select, shake on wrong.`,
+UI: Large A/B/C/D buttons with colors, flip animation on select, shake on wrong.\`,
 
-  matching: `TIMER: Whole-game countdown (2-3 min). Score: 1st-try pair=100pts, 2nd-try=50pts, wrong=-10pts.
+  matching: \`TIMER: Whole-game countdown (2-3 min). Score: 1st-try pair=100pts, 2nd-try=50pts, wrong=-10pts.
 TIME: Correct pair +5s, wrong -8s.
 COMBO: 3 pairs correct in a row = mini confetti burst.
-UI: Two columns. Select left item (highlight) then click right item to connect. Green line=correct, shake+fade=wrong.`,
+UI: Two columns. Select left item (highlight) then click right item to connect. Green line=correct, shake+fade=wrong.\`,
 
-  memory: `TIMER: Whole-game countdown (3-5 min). Score: Find pair 1st flip=200pts, 2nd=100pts, 3rd+=50pts.
+  memory: \`TIMER: Whole-game countdown (3-5 min). Score: Find pair 1st flip=200pts, 2nd=100pts, 3rd+=50pts.
 TIME: Correct pair +10s, 3+ wrong flips on same pair -5s.
 COMBO: 2 pairs correct in a row -> "Memory Master!" bonus.
-UI: Card grid with 3D flip animation (CSS rotateY 180deg). Stylish gradient back. Clear front content.`,
+UI: Card grid with 3D flip animation (CSS rotateY 180deg). Stylish gradient back. Clear front content.\`,
 
-  crossword: `TIMER: Whole-game countdown (5-8 min). Score: Complete word=100pts, used hint=50pts max.
+  crossword: \`TIMER: Whole-game countdown (5-8 min). Score: Complete word=100pts, used hint=50pts max.
 PENALTIES: Use hint button -20pts. View answer -30s.
 REWARDS: Correct word +15s added to timer.
-UI: Numbered letter grid, sidebar clues panel. Completed cells turn green, wrong turn red.`,
+UI: Numbered letter grid, sidebar clues panel. Completed cells turn green, wrong turn red.\`,
 
-  reaction: `TIMER: Whole-game countdown (2-3 min). Score: Perfect sequence 1st try=200pts, retry=100pts.
+  reaction: \`TIMER: Whole-game countdown (2-3 min). Score: Perfect sequence 1st try=200pts, retry=100pts.
 REWARDS: Each correct step +20pts, wrong order -30pts. Complete sequence +20s.
 COMBO: Perfect 1st try -> "PERFECT!" star animation + 50 bonus pts.
-UI: Numbered cards that can be clicked in order 1->2->3. Slide animation when placing.`,
+UI: Numbered cards that can be clicked in order 1->2->3. Slide animation when placing.\`,
 
-  wordsearch: `TIMER: Whole-game countdown (4-6 min based on word count). Score: Find word=50pts, quick find in 30s=80pts.
+  wordsearch: \`TIMER: Whole-game countdown (4-6 min based on word count). Score: Find word=50pts, quick find in 30s=80pts.
 TIME: Find word +10s, press Hint button -20s.
-UI: 10x10 letter grid. Click-and-drag to select word. Found words get colored highlight. Word list on side shows checkmarks.`,
+UI: 10x10 letter grid. Click-and-drag to select word. Found words get colored highlight. Word list on side shows checkmarks.\`,
 
-  fillblank: `TIMER: Per-question countdown (15-25s). Score: Correct=100pts+speed bonus. Used hint=50pts max.
+  fillblank: \`TIMER: Per-question countdown (15-25s). Score: Correct=100pts+speed bonus. Used hint=50pts max.
 PENALTIES: Wrong 1st time -20pts, wrong 2nd time show answer and -30pts more.
 TIME: Correct +5s added. Wrong: timer bar speeds up (pressure effect).
 COMBO: Correct streak -> fire streak animation.
-UI: Sentence with highlighted blank. Easy=word bank buttons. Hard=free typing input.`,
+UI: Sentence with highlighted blank. Easy=word bank buttons. Hard=free typing input.\`,
 
-  truefalse: `TIMER: Per-question FAST countdown (8-12s). Creates excitement and pressure!
+  truefalse: \`TIMER: Per-question FAST countdown (8-12s). Creates excitement and pressure!
 SCORING: Correct in first 5s=150pts (lightning round!), 5-10s=100pts, time almost out=50pts.
 COMBO: x1.5 multiplier after 3 correct, x2.0 after 5 correct in a row.
 PENALTIES: Wrong -30pts, Wrong -5s to timer.
-UI: Large TRUE/FALSE buttons in green/red, strong click animation. Fast horizontal countdown bar.`,
+UI: Large TRUE/FALSE buttons in green/red, strong click animation. Fast horizontal countdown bar.\`,
 };
 
 export function getGameGeneratorPrompt(params: GameGeneratorParams): string {
@@ -71,11 +74,11 @@ export function getGameGeneratorPrompt(params: GameGeneratorParams): string {
     "Your task: Build a single HTML file game that is visually stunning, educationally accurate, and runs perfectly without any JS errors.",
     "",
     "=== GAME REQUIREMENTS ===",
-    `Topic: ${topic}`,
-    `Game Type: ${gameType}`,
-    `Number of questions/items: ${questionCount}`,
-    `Difficulty: ${diffGuide}`,
-    description ? `Additional notes: ${description}` : "",
+    \`Topic: \${topic}\`,
+    \`Game Type: \${gameType}\`,
+    \`Number of questions/items: \${questionCount}\`,
+    \`Difficulty: \${diffGuide}\`,
+    description ? \`Additional notes: \${description}\` : "",
     "",
     "=== GAME MECHANICS ===",
     mechanic,
@@ -126,7 +129,7 @@ export function getGameGeneratorPrompt(params: GameGeneratorParams): string {
     useTimer ? "- Timer tick: playSound(440, 0.1, 'sine') once each second when <= 5s remain" : "",
     "",
     "=== EDUCATIONAL CONTENT REQUIREMENTS ===",
-    `Create exactly ${questionCount} questions/items about "${topic}" at ${difficulty} difficulty.`,
+    \`Create exactly \${questionCount} questions/items about "\${topic}" at \${difficulty} difficulty.\`,
     "ACCURACY: Must be 100% factually correct - this is a real educational tool used in schools.",
     "DIVERSITY: Each question covers a different aspect. No repetitive question patterns.",
     "LANGUAGE: Vietnamese primarily. Scientific terms may stay in English or Latin.",
@@ -186,5 +189,13 @@ export function getGameGeneratorPrompt(params: GameGeneratorParams): string {
     "No markdown fences. No backticks. No explanations. Pure HTML only.",
   ];
 
-  return lines.filter(l => l !== null && l !== undefined).join("\n");
+  return lines.filter(l => l !== null && l !== undefined).join("\\n");
 }
+`;
+
+fs.writeFileSync(
+  path.join(__dirname, 'lib', 'prompts', 'gameGeneratorPrompt.ts'),
+  content,
+  'utf8'
+);
+console.log('Done!');
