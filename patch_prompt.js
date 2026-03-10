@@ -2,28 +2,28 @@ const fs = require('fs');
 const file = 'lib/prompts/gameGeneratorPrompt.ts';
 let c = fs.readFileSync(file, 'utf8');
 
-// Add 'custom' case to GAME_DESIGNS object before the closing }; line
-const customCase = `
-  custom: \`=== CUSTOM GAME TYPE ===
-The user has defined their own game type. Read the description in the [LOAI GAME TU DINH NGHIA] section and implement EXACTLY what they described.
-Build the full game mechanics based solely on their description.
-Apply the timer, scoring, and reward/penalty settings from the configuration.
-If they don't specify scoring details, use: correct answer = 100pts, wrong = -20pts.
-Follow all standard JS robustness rules. The game must be fully playable with no errors.
-Be creative and make the UI beautiful as always.\`,
-`;
+// Add SCRIPT PLACEMENT rule to Technical Constraints section
+const oldConstraints = `    "- Single HTML file ONLY: <!DOCTYPE html>...</html>",
+    "- All CSS in <style> - NO CDN, NO Google Fonts URL, NO external stylesheets",
+    "- All JS in <script> - NO CDN, NO external scripts, NO fetch() to APIs",
+    "- Works completely offline",`;
 
-// Insert before the closing of GAME_DESIGNS
-c = c.replace(
-  "  truefalse: `TIMER:",
-  customCase + "  truefalse: `TIMER:"
-);
+const newConstraints = `    "- Single HTML file ONLY: <!DOCTYPE html>...</html>",
+    "- All CSS in <style> tag in <head> - NO CDN, NO Google Fonts URL, NO external stylesheets",
+    "- ALL <script> tags MUST be placed IMMEDIATELY BEFORE </body> - NEVER in <head>",
+    "- CRITICAL: Never call getElementById/querySelector or addEventListener at top level.",
+    "  All DOM interactions MUST be inside functions that are only called AFTER the DOM renders.",
+    "  Pattern: <script> function showIntro(){...} function startGame(){...} showIntro(); </script>",
+    "  The LAST line of the script calls the first screen function (showIntro or init).",
+    "- All JS in <script> - NO CDN, NO external scripts, NO fetch() to APIs",
+    "- Works completely offline",`;
 
-// Also handle the gameDesign lookup to ensure custom falls through with the description
-c = c.replace(
-  'const gameDesign = MECHANIC_GUIDES[gameType] || MECHANIC_GUIDES.quiz;',
-  'const gameDesign = MECHANIC_GUIDES[gameType] || MECHANIC_GUIDES.quiz;'
-);
+c = c.replace(oldConstraints, newConstraints);
 
-fs.writeFileSync(file, c, 'utf8');
-console.log('Patched: added custom game type to GAME_DESIGNS');
+if (c.includes('IMMEDIATELY BEFORE </body>')) {
+  fs.writeFileSync(file, c, 'utf8');
+  console.log('✅ Patched: script-at-body-end rule added');
+} else {
+  console.error('❌ Target string not found - pattern may have changed');
+  process.exit(1);
+}

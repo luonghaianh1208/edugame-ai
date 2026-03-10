@@ -197,23 +197,37 @@ export default function MainApp() {
         fullText += decoder.decode(value, { stream: true });
       }
 
-      // ── Parse [REPLY] and [CODE]...[/CODE] delimiters ─────────────
-      // Extract reply text
+      // ── Parse [REPLY] and extract code with 3-tier fallback ──────
+      // Extract reply text (everything before [CODE] if present)
       const replyMatch = fullText.match(/\[REPLY\]([\s\S]*?)(?=\[CODE\]|$)/i);
-      const replyText = replyMatch ? replyMatch[1].trim() : fullText.trim();
+      const replyText = replyMatch ? replyMatch[1].trim() : fullText.split(/```html?/i)[0].replace(/\[REPLY\]/i, "").trim();
 
-      // Extract code block
-      const codeMatch = fullText.match(/\[CODE\]([\s\S]*?)\[\/CODE\]/i);
+      // Tier 1: explicit [CODE]...[/CODE] delimiter
       let patchedCode: string | null = null;
-      if (codeMatch) {
-        patchedCode = codeMatch[1].trim()
-          .replace(/^```html?\s*/i, "")
-          .replace(/\s*```\s*$/, "")
-          .trim();
-        // Validate it's actually HTML
-        if (!patchedCode.toLowerCase().includes("<!doctype html")) {
-          patchedCode = null;
+      const t1 = fullText.match(/\[CODE\]([\s\S]*?)\[\/CODE\]/i);
+      if (t1) {
+        patchedCode = t1[1].trim().replace(/^```html?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      }
+
+      // Tier 2: markdown ```html or ``` fences containing <!DOCTYPE
+      if (!patchedCode) {
+        const t2 = fullText.match(/```html?\s*([\s\S]*?)```/i);
+        if (t2 && t2[1].toLowerCase().includes("<!doctype html")) {
+          patchedCode = t2[1].trim();
         }
+      }
+
+      // Tier 3: raw <!DOCTYPE html ... </html> block anywhere in text
+      if (!patchedCode) {
+        const t3 = fullText.match(/(<!DOCTYPE html[\s\S]*?<\/html>)/i);
+        if (t3) {
+          patchedCode = t3[1].trim();
+        }
+      }
+
+      // Validate HTML
+      if (patchedCode && !patchedCode.toLowerCase().includes("<!doctype html")) {
+        patchedCode = null;
       }
 
       // Check for stream error
@@ -226,7 +240,7 @@ export default function MainApp() {
       const hasCodeUpdate = !!patchedCode;
       setChatMessages(prev => [...prev, {
         role: "assistant",
-        content: replyText || "Đã xử lý yêu cầu.",
+        content: replyText || (hasCodeUpdate ? "✅ Code đã được cập nhật thành công." : "Đã xử lý yêu cầu."),
         hasCodeUpdate,
       }]);
 
