@@ -143,7 +143,7 @@ window.addEventListener('unhandledrejection', function(e) {
             ref={iframeRef}
             key={`preview-${refreshKey}`}
             srcDoc={srcDoc}
-            sandbox="allow-scripts allow-forms"
+            sandbox="allow-scripts allow-forms allow-same-origin allow-modals"
             style={{ width: "100%", height: "100%", border: "none", display: "block" }}
             title="Game Preview"
           />

@@ -9,105 +9,337 @@ export interface GameGeneratorParams {
   description?: string;
 }
 
-const MECHANIC_GUIDES: Record<string, string> = {
-  quiz: `TIMER: Per-question countdown (20-30s based on difficulty). Beautiful progress bar.
-SCORING: Correct=100pts + speed bonus (0-50pts). Wrong=-20pts (never below 0).
-COMBO: 3+ correct in a row -> "COMBO x3 fire" and next points doubled.
-UI: Large A/B/C/D buttons with colors, flip animation on select, shake on wrong.`,
-
-  matching: `TIMER: Whole-game countdown (2-3 min). Score: 1st-try pair=100pts, 2nd-try=50pts, wrong=-10pts.
-TIME: Correct pair +5s, wrong -8s.
-COMBO: 3 pairs correct in a row = mini confetti burst.
-UI: Two columns. Select left item (highlight) then click right item to connect. Green line=correct, shake+fade=wrong.`,
-
-  memory: `TIMER: Whole-game countdown (3-5 min). Score: Find pair 1st flip=200pts, 2nd=100pts, 3rd+=50pts.
-TIME: Correct pair +10s, 3+ wrong flips on same pair -5s.
-COMBO: 2 pairs correct in a row -> "Memory Master!" bonus.
-UI: Card grid with 3D flip animation (CSS rotateY 180deg). Stylish gradient back. Clear front content.`,
-
-  crossword: `TIMER: Whole-game countdown (5-8 min). Score: Complete word=100pts, used hint=50pts max.
-PENALTIES: Use hint button -20pts. View answer -30s.
-REWARDS: Correct word +15s added to timer.
-UI: Numbered letter grid, sidebar clues panel. Completed cells turn green, wrong turn red.`,
-
-  reaction: `TIMER: Whole-game countdown (2-3 min). Score: Perfect sequence 1st try=200pts, retry=100pts.
-REWARDS: Each correct step +20pts, wrong order -30pts. Complete sequence +20s.
-COMBO: Perfect 1st try -> "PERFECT!" star animation + 50 bonus pts.
-UI: Numbered cards that can be clicked in order 1->2->3. Slide animation when placing.`,
-
-  wordsearch: `TIMER: Whole-game countdown (4-6 min based on word count). Score: Find word=50pts, quick find in 30s=80pts.
-TIME: Find word +10s, press Hint button -20s.
-UI: 10x10 letter grid. Click-and-drag to select word. Found words get colored highlight. Word list on side shows checkmarks.`,
-
-  fillblank: `TIMER: Per-question countdown (15-25s). Score: Correct=100pts+speed bonus. Used hint=50pts max.
-PENALTIES: Wrong 1st time -20pts, wrong 2nd time show answer and -30pts more.
-TIME: Correct +5s added. Wrong: timer bar speeds up (pressure effect).
-COMBO: Correct streak -> fire streak animation.
-UI: Sentence with highlighted blank. Easy=word bank buttons. Hard=free typing input.`,
-
-  truefalse: `TIMER: Per-question FAST countdown (8-12s). Creates excitement and pressure!
-SCORING: Correct in first 5s=150pts (lightning round!), 5-10s=100pts, time almost out=50pts.
-COMBO: x1.5 multiplier after 3 correct, x2.0 after 5 correct in a row.
-PENALTIES: Wrong -30pts, Wrong -5s to timer.
-UI: Large TRUE/FALSE buttons in green/red, strong click animation. Fast horizontal countdown bar.`,
-};
-
 export function getGameGeneratorPrompt(params: GameGeneratorParams): string {
-  const {
-    topic, gameType, questionCount, difficulty,
-    useTimer, useScoring, rewardPenalty, description
-  } = params;
+  const { topic, gameType, questionCount, difficulty, useTimer, useScoring, rewardPenalty, description } = params;
 
   const diffMap: Record<string, string> = {
-    easy: "basic and direct - suitable for students new to this topic",
-    medium: "mix of theory and application, requires understanding core concepts",
-    hard: "deep analysis and multi-step reasoning, complex context questions",
+    easy: "basic level - direct, non-tricky, for beginners of this topic",
+    medium: "intermediate - mix theory with application, requires understanding",
+    hard: "advanced - deep analysis, multi-step reasoning, complex scenarios",
   };
   const diffGuide = diffMap[difficulty] || "medium level";
-  const mechanic = MECHANIC_GUIDES[gameType] || MECHANIC_GUIDES.quiz;
 
-  const lines: string[] = [
-    "You are EDUGAME AI, expert at creating beautiful, bug-free interactive educational HTML games for Vietnamese students.",
-    "Your task: Build a single HTML file game that is visually stunning, educationally accurate, and runs perfectly without any JS errors.",
+  // ============================================================
+  // DETAILED GAME MECHANICS - per game type
+  // ============================================================
+  const GAME_DESIGNS: Record<string, string> = {
+
+    quiz: `=== QUIZ GAME DESIGN ===
+LAYOUT:
+- Header bar: Question X/N counter, Score display, Timer bar (if enabled), Combo indicator
+- Question area: Large text showing the question (center screen, minimum 18px)
+- Answer area: 4 buttons arranged in 2x2 grid, labeled A B C D
+- Each button: distinct color (A=blue, B=purple, C=orange, D=red variant), large click area
+
+FLOW EACH QUESTION:
+1. Show question text with fade-in animation
+2. Show 4 shuffled answer buttons (shuffle answer order each time, keep correct track)
+3. Player clicks an answer
+4. IMMEDIATELY: disable all 4 buttons to prevent double-click
+5. Highlight correct button GREEN, wrong choice RED (if player was wrong)
+6. Show brief explanation text under question (1 sentence) for 1.5 seconds
+7. Auto-advance to next question after 1.5s delay
+8. Repeat until all ${questionCount} questions complete
+9. Show result screen
+
+DATA STRUCTURE:
+const questions = [
+  { q: "Question text", answers: ["Correct", "Wrong1", "Wrong2", "Wrong3"], correct: 0, explain: "Because..." },
+  ...
+];
+// Shuffle answers array before display but track correct index!`,
+
+    matching: `=== MATCHING GAME DESIGN ===
+CRITICAL: ALL ${questionCount} PAIRS must be visible simultaneously on screen at once.
+NOT one-at-a-time - the entire set appears shuffled, player matches all of them.
+
+LAYOUT:
+- Header: Score, Timer (if enabled), Matches remaining counter
+- Main area: TWO COLUMNS side by side
+  - LEFT column: All ${questionCount} terms (concepts, words) in SHUFFLED order
+  - RIGHT column: All ${questionCount} definitions/answers in DIFFERENTLY SHUFFLED order
+  - Both columns visible at same time
+
+INTERACTION:
+1. Player clicks an item in the left column -> it highlights (blue border glow)
+2. Player then clicks an item in the right column
+3. If correct pair: draw a colored line connecting them, fade both to "matched" state (grey, semi-transparent), play correct sound
+4. If wrong: both items shake/flash red, deselect, player must try again (no penalty to hide, just stays visible)
+5. Continue until all pairs matched -> game ends
+
+VISUAL LINE CONNECTION:
+- Use SVG overlay or CSS to draw colored lines between matched pairs
+- Or: matched pairs collapse/disappear with animation, remaining items reposition
+
+LEFT items: terms/words/concepts (shuffled randomly)
+RIGHT items: definitions/translations/answers (shuffled INDEPENDENTLY - different order from left)
+
+DATA STRUCTURE:
+const pairs = [
+  { left: "Term/Word/Concept", right: "Definition/Answer/Match" },
+  ... // exactly ${questionCount} pairs
+];
+// Shuffle left array and right array INDEPENDENTLY before display`,
+
+    memory: `=== MEMORY CARD GAME DESIGN ===
+LAYOUT:
+- Header: Pairs found X/N, Moves counter, Score, Timer (if enabled)
+- Grid of ${questionCount * 2} cards arranged in rows (e.g. 4x5 for 10 pairs, 4x4 for 8 pairs)
+- ALL cards face-down initially (show back face with gradient/pattern)
+
+CARD CONTENT (each pair):
+- Card A: shows the TERM/QUESTION
+- Card B: shows the DEFINITION/ANSWER
+- Player must flip A then B to match them
+- Cards contain text only (no images needed)
+
+INTERACTION FLOW:
+1. Player clicks card -> it flips over with 3D animation (CSS rotateY 0->180deg, 0.4s)
+2. First card stays face-up while player picks second card
+3. Player clicks second card -> it flips
+4. Compare the two face-up cards:
+   - MATCH: both cards stay face-up, glow green, play correct sound, increment score
+   - NO MATCH: both cards flip back face-down after 1 second delay, play wrong sound
+5. Only 2 cards can be face-up at a time (lock clicks during comparison)
+6. Game ends when all pairs found
+
+3D FLIP ANIMATION (CSS):
+.card { transform-style: preserve-3d; transition: transform 0.4s; }
+.card.flipped { transform: rotateY(180deg); }
+.card-front { backface-visibility: hidden; }
+.card-back { backface-visibility: hidden; transform: rotateY(180deg); }
+
+DATA: ${questionCount} pairs, each with a "term" side and "answer" side.
+Total cards on grid: ${questionCount * 2} cards`,
+
+    crossword: `=== CROSSWORD PUZZLE DESIGN ===
+LAYOUT:
+- Left side (60%): Interactive crossword grid
+- Right side (40%): Clues list scrollable (ACROSS and DOWN sections)
+- Header: Score, Timer (if enabled), words remaining
+
+GRID CONSTRUCTION:
+- Build a real intersecting crossword grid where words share letters at intersections
+- Each cell: numbered if it starts a word, white background, input capable
+- Cells not part of any word: black/dark background
+- Player clicks a cell -> highlights entire word direction, clue highlighted in list
+
+INTERACTION:
+1. Player clicks any white cell to activate it
+2. The full word (ACROSS or DOWN based on direction) highlights in blue
+3. The corresponding clue highlights in the right panel
+4. Player types letters into cells (one letter per cell, auto-advance to next cell)
+5. Letter auto-capitalizes
+6. When word completed correctly: entire word turns green, play sound
+7. When word completed wrong: flash red, clear cells, allow retry
+8. Press Tab to switch between ACROSS and DOWN for same starting cell
+
+HINT SYSTEM: "Goi y" button reveals first letter of selected word (penalty to score)
+
+WORDS: Generate ${questionCount} words that CAN intersect to form a valid crossword.
+Words should be related to the topic "${topic}". Include ACROSS and DOWN clues.`,
+
+    reaction: `=== ORDERING/SEQUENCE GAME DESIGN ===
+IMPORTANT: This is a SEQUENCE ORDERING game - player puts items in correct logical order.
+
+LAYOUT:
+- Header: Score, Timer (if enabled), Round X/N
+- Scrambled items area: ${Math.min(questionCount, 6)} cards/items displayed in RANDOM ORDER
+- Each card shows content that must be ordered (steps, events, numbers, processes)
+- "Submit Order" button at bottom
+
+INTERACTION (CLICK-TO-ORDER):
+1. Display ${Math.min(questionCount, 6)} shuffled items per round (positions 1-N shown scrambled)
+2. Player clicks items in the CORRECT sequence ORDER (click-to-select approach):
+   - Click item 1 (first in correct order) -> shows "1" badge on it
+   - Click item 2 -> shows "2" badge on it
+   - Continue until all items ordered
+3. "Kiểm tra" button (or auto-check when last item clicked)
+4. Show result: correct items in green (right position), wrong items in red
+5. Play correct/wrong sounds, show points
+6. Next round with new set of items
+
+ALTERNATIVELY (DRAG-AND-DROP if cleaner): Items have drag handles, player drags into order slots.
+
+DATA STRUCTURE:
+const sequences = [
+  {
+    title: "Arrange in correct order: [topic-specific instruction]",
+    items: ["Step 1 text", "Step 2 text", "Step 3 text", "Step 4 text"],
+    // items stored in CORRECT ORDER, shuffle before display
+  },
+  ... // ${questionCount} different sequences
+];`,
+
+    wordsearch: `=== WORD SEARCH GAME DESIGN ===
+LAYOUT:
+- Main area (65%): Letter grid (12x12 or 15x15 depending on word count)
+- Right panel (35%): List of words to find, each with a checkbox or strikethrough when found
+- Header: Words found X/${questionCount}, Timer (if enabled), Score
+
+GRID CONSTRUCTION:
+1. Create a ${questionCount <= 8 ? '12x12' : '15x15'} grid filled with random letters
+2. Place all ${questionCount} words in the grid: HORIZONTALLY, VERTICALLY, or DIAGONALLY (both directions)
+3. Fill remaining empty cells with random letters (A-Z)
+4. Words can overlap at shared letters
+5. Uppercase letters only
+
+INTERACTION (CLICK AND DRAG):
+1. Player CLICKS first letter of a word (mousedown/touchstart)
+2. Player DRAGS to last letter (mousemove/touchmove) - highlight path in blue as they drag
+3. Player RELEASES (mouseup/touchend) - validate selection
+4. If valid word: highlight path in unique color (different color per found word), mark word in list with checkmark
+5. If invalid: path fades/disappears, try again
+6. Game ends when all words found (or timer runs out)
+
+WORD PLACEMENT ALGORITHM:
+function placeWord(grid, word, direction) {
+  // Try random positions, check if word fits without conflicting letters
+  // directions: horizontal right, vertical down, diagonal down-right, horizontal left, etc.
+}
+
+DATA: ${questionCount} words related to topic "${topic}" (4-10 letters each, uppercase)
+Show words in the word list sorted ALPHABETICALLY for easy reference`,
+
+    fillblank: `=== FILL IN THE BLANK GAME DESIGN ===
+LAYOUT:
+- Header: Question X/${questionCount}, Score, Timer (if enabled)
+- Sentence display: Full sentence with blank shown as "______" or [?]
+- Answer input area: EITHER word banks (clickable buttons) OR text input field
+- Submit button (or auto-submit on word bank click)
+
+DIFFICULTY-BASED MODE:
+- Easy/Medium: WORD BANK mode
+  - Show the correct answer + 2-3 distractor words as clickable buttons
+  - Player clicks the correct word to fill the blank
+  - Buttons shuffle randomly each question
+- Hard: FREE TYPE mode
+  - Player types the answer in a text input field
+  - Case-insensitive matching, trim whitespace
+  - Accept slight misspellings? (optional: Levenshtein distance 1-2)
+
+INTERACTION:
+1. Show sentence with blank: "The mitochondria is known as the ______ of the cell"
+2. Player selects/types answer
+3. Immediate feedback: blank fills in GREEN (correct) or RED (wrong)
+4. Show correct answer if wrong, with explanation
+5. Auto-advance to next question after 1.5s
+
+BLANK PLACEMENT: Blank can be:
+- A KEY TERM in the middle or end of sentence
+- A SPECIFIC VALUE/NUMBER
+- A PERSON NAME / PLACE NAME
+- A SCIENTIFIC TERM
+
+DATA STRUCTURE:
+const questions = [
+  {
+    sentence: "The ______ is the powerhouse of the cell",
+    blank: "mitochondria",
+    distractors: ["nucleus", "ribosome", "chloroplast"],
+    explain: "Mitochondria produces ATP energy through cellular respiration"
+  },
+  ... // ${questionCount} sentences
+];`,
+
+    truefalse: `=== TRUE OR FALSE GAME DESIGN ===
+LAYOUT:
+- Full-screen statement display (large readable text, center of screen)
+- Header: Question X/${questionCount}, Score, Timer progress bar (if enabled)
+- Two buttons at bottom: big "DUNG" (TRUE) button in GREEN, big "SAI" (FALSE) button in RED
+- Combo multiplier display (if scoring enabled)
+
+INTERACTION FLOW:
+1. Statement appears with slide-in animation
+2. Timer counts down FAST (8-15 seconds shows urgency - timer bar depletes visually)
+3. Player clicks TRUE or FALSE
+4. IMMEDIATELY: disable both buttons, show correct answer
+   - If player was RIGHT: button glows, +points with floating text animation
+   - If player was WRONG: correct button highlighted, player choice X'd out
+5. Show brief explanation (1 sentence) for 1.5 seconds
+6. Next statement slides in
+7. If timer expires = counted as wrong answer
+
+LIGHTNING ROUND SCORING (if useScoring):
+- Answer in first 1/3 of time: maximum points (150pts)
+- Answer in middle 1/3: medium points (100pts)
+- Answer in last 1/3: fewer points (50pts)
+- Time expired: 0 points, wrong answer
+
+STATEMENT DESIGN:
+- Mix of TRUE statements (about 50%) and FALSE statements (different 50%)
+- FALSE statements should be PLAUSIBLE misconceptions (not obviously wrong)
+- Vary the topics covered within "${topic}"
+
+DATA STRUCTURE:
+const statements = [
+  { text: "Statement about the topic", isTrue: true/false, explain: "Because..." },
+  ... // ${questionCount} statements, shuffle to mix true/false
+];`,
+  };
+
+  const gameDesign = GAME_DESIGNS[gameType] || GAME_DESIGNS.quiz;
+
+  const timerLine = useTimer
+    ? "YES TIMER: Implement timer as specified in game design. Show visual countdown."
+    : "NO TIMER: No countdown pressure. Can show elapsed time counting up.";
+  const scoringLine = useScoring
+    ? "YES SCORING: Full scoring system as per game design. Animate score changes with floating '+points' text."
+    : "NO SCORING: Show only correct/wrong feedback. No score display needed.";
+  const rewardLine =
+    rewardPenalty === "none" ? "NO REWARD/PENALTY: Casual relaxed mode." :
+    rewardPenalty === "points" ? "SCORE REWARDS: Correct answers add points, wrong deduct points. Implement combo multiplier streak." :
+    rewardPenalty === "time" ? "TIME REWARDS/PENALTIES: Correct=add seconds to timer, Wrong=subtract seconds from timer." :
+    "BOTH REWARDS: Combine both score changes AND time changes on correct/wrong answers.";
+
+  const lines = [
+    "You are EDUGAME AI, an expert at building beautiful, interactive, bug-free educational HTML games for Vietnamese students.",
+    "Create a single self-contained HTML file game that is visually stunning, educationally accurate, and runs perfectly.",
     "",
-    "=== GAME REQUIREMENTS ===",
-    `Topic: ${topic}`,
-    `Game Type: ${gameType}`,
-    `Number of questions/items: ${questionCount}`,
-    `Difficulty: ${diffGuide}`,
-    description ? `Additional notes: ${description}` : "",
+    "============================================================",
+    "GAME REQUIREMENTS",
+    "============================================================",
+    "Topic: " + topic,
+    "Game Type: " + gameType,
+    "Number of questions/items: " + questionCount,
+    "Difficulty: " + diffGuide,
+    description ? "Additional instructions: " + description : "",
     "",
-    "=== GAME MECHANICS ===",
-    mechanic,
-    useTimer
-      ? "YES TIMER: Implement countdown timer as described in the mechanic above."
-      : "NO TIMER: No countdown. Optionally show elapsed time counting up.",
-    useScoring
-      ? "YES SCORING: Show realtime score in header. Animate score changes with floating text."
-      : "NO SCORING: Show correct/wrong feedback only. No score panel needed.",
-    rewardPenalty === "none" ? "NO REWARD/PENALTY: Casual mode." :
-    rewardPenalty === "points" ? "SCORE REWARDS: Full combo streak system as described." :
-    rewardPenalty === "time" ? "TIME REWARDS: Correct=add seconds, Wrong=subtract seconds." :
-    "BOTH REWARDS: Combine score AND time rewards intelligently.",
+    "============================================================",
+    gameDesign,
+    "============================================================",
     "",
-    "=== UI DESIGN - MUST BE VISUALLY STUNNING ===",
-    "Background: Rich dark gradient REQUIRED (e.g. #1a1a2e->#16213e->#0f3460 or #0f0c29->#302b63). NEVER plain white or grey.",
-    "Font: 'Segoe UI', Arial Rounded, sans-serif. Base size 16px minimum.",
-    "Buttons: border-radius >= 12px, gradient fill, box-shadow, hover:transform:scale(1.05) with transition.",
-    "Use emojis directly for visual icons - no external icon libraries.",
-    "Screen flow: INTRO (logo+title+animated Start button) -> GAME (header:score/timer/progress/combo) -> RESULT (stars+stats+Play Again).",
+    "SETTINGS:",
+    timerLine,
+    scoringLine,
+    rewardLine,
     "",
-    "=== REQUIRED ANIMATIONS (CSS @keyframes only, no libraries) ===",
-    "- Screen/question load: fade-in + slide-up (0.3s ease)",
-    "- Correct answer: confetti burst or bounce or green glow + floating '+100' text that rises and fades",
-    "- Wrong answer: shake (0.3s) + red background flash + brief explanation text",
-    useTimer ? "- Timer critical (<=5s): timer bar turns red and pulses" : "",
-    "- Combo achieved: fire or sparkle particle effect",
-    "- Game complete: star reveal animation + confetti explosion",
+    "============================================================",
+    "VISUAL DESIGN REQUIREMENTS - MUST BE STUNNING",
+    "============================================================",
+    "Background: Rich dark gradient (e.g. #1a1a2e->#16213e->#0f3460 or #0f0c29->#302b63 etc). NEVER plain white/grey.",
+    "Font: 'Segoe UI', Arial Rounded, system-ui, sans-serif. Base size 16px+.",
+    "Buttons: border-radius >= 12px, gradient backgrounds, box-shadow, hover:scale(1.05) transition 0.15s.",
+    "Use emoji directly in HTML (no icon libs needed).",
     "",
-    "=== AUDIO - Web Audio API ONLY (NO CDN, NO AUDIO FILES) ===",
-    "Use this helper function - ALWAYS inside try/catch:",
-    "function playSound(freq, dur, waveType) {",
+    "3 SCREENS REQUIRED:",
+    "1. INTRO SCREEN: Game title with emoji, topic name, game type badge, animated Start button, brief instruction",
+    "2. GAME SCREEN: Active gameplay with header (score/timer/progress indicator)",
+    "3. RESULT SCREEN: Total score, star rating (1-3 based on score %), key stats, Play Again button",
+    "",
+    "REQUIRED ANIMATIONS (CSS @keyframes only, no libraries):",
+    "- Screen transitions: fade-in + slide-up (0.3s ease)",
+    "- Correct answer: green glow + scale up + floating '+N pts' text that rises then fades",
+    "- Wrong answer: shake animation (0.3s) + red flash",
+    useTimer ? "- Timer critical (<=20% time remaining): timer bar pulses red" : "",
+    "- Combo achieved: star burst or sparkle effect",
+    "- Result screen: animated star reveal (pop in sequence)",
+    "",
+    "============================================================",
+    "SOUND - Web Audio API ONLY (no CDN, no audio files)",
+    "============================================================",
+    "// Always inside try/catch:",
+    "function playSound(freq, dur, waveType, vol) {",
     "  try {",
     "    const ctx = new (window.AudioContext || window.webkitAudioContext)();",
     "    const osc = ctx.createOscillator();",
@@ -115,76 +347,78 @@ export function getGameGeneratorPrompt(params: GameGeneratorParams): string {
     "    osc.connect(gain); gain.connect(ctx.destination);",
     "    osc.type = waveType || 'sine';",
     "    osc.frequency.value = freq;",
-    "    gain.gain.setValueAtTime(0.3, ctx.currentTime);",
+    "    gain.gain.setValueAtTime(vol||0.25, ctx.currentTime);",
     "    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);",
     "    osc.start(); osc.stop(ctx.currentTime + dur);",
     "  } catch(e) {}",
     "}",
+    "- Start game: playSound(523, 0.15, 'sine') then playSound(659, 0.15, 'sine') delayed 150ms",
     "- Correct: playSound(880, 0.2, 'sine')",
-    "- Wrong: playSound(220, 0.4, 'sawtooth')",
-    "- Win/Complete: 3-note ascending melody with timed playSound calls",
-    useTimer ? "- Timer tick: playSound(440, 0.1, 'sine') once each second when <= 5s remain" : "",
+    "- Wrong: playSound(196, 0.5, 'sawtooth')",
+    "- Game complete (win): ascending melody 3 notes",
+    useTimer ? "- Timer critical: playSound(440, 0.08, 'square') each tick when <= 5 seconds remain" : "",
     "",
-    "=== EDUCATIONAL CONTENT REQUIREMENTS ===",
-    `Create exactly ${questionCount} questions/items about "${topic}" at ${difficulty} difficulty.`,
-    "ACCURACY: Must be 100% factually correct - this is a real educational tool used in schools.",
-    "DIVERSITY: Each question covers a different aspect. No repetitive question patterns.",
-    "LANGUAGE: Vietnamese primarily. Scientific terms may stay in English or Latin.",
-    "EXPLANATION: When wrong, show a brief 1-sentence explanation to help the student learn.",
+    "============================================================",
+    "EDUCATIONAL CONTENT",
+    "============================================================",
+    "Create exactly " + questionCount + " items/questions about topic: '" + topic + "' at " + difficulty + " difficulty.",
+    "ACCURACY: Must be 100% factually correct - used in real classrooms.",
+    "DIVERSITY: Cover different aspects of the topic. No two questions of the same type/angle.",
+    "LANGUAGE: Vietnamese. Keep scientific/technical terms in original language (English/Latin) when needed.",
+    "WRONG ANSWER FEEDBACK: Show a brief explanation sentence when student answers incorrectly.",
     "",
-    "=== JAVASCRIPT ROBUSTNESS - CRITICAL RULES ===",
-    "The game MUST run without ANY errors. Every rule below is mandatory:",
-    "",
+    "============================================================",
+    "JAVASCRIPT ROBUSTNESS - MANDATORY RULES",
+    "============================================================",
     "RULE 1 - STATE MACHINE:",
-    "  Use: let gameState = 'intro'; // values: 'intro' | 'playing' | 'result'",
-    "  Use separate render functions: showIntro(), startGame(), showResult()",
-    "  NEVER mix multiple screen rendering in one function.",
+    "  let gameState = 'intro'; // 'intro' | 'playing' | 'result'",
+    "  Separate render functions: showIntro(), startGame(), showResult()",
     "",
     "RULE 2 - SAFE EVENT LISTENERS:",
-    "  - Declare ALL JavaScript functions BEFORE any HTML that calls them via onclick",
-    "  - Preferred: use document.addEventListener('DOMContentLoaded', function() { init(); })",
-    "  - Always check: const el = document.getElementById('id'); if (el) { el.addEventListener(...) }",
+    "  PREFERRED: Use document.addEventListener('DOMContentLoaded', () => { showIntro(); })",
+    "  Define ALL functions at top of script BEFORE any code that calls them.",
+    "  Check elements exist: const el = document.getElementById('x'); if (el) el.addEventListener(...)",
     "",
-    "RULE 3 - TIMER MANAGEMENT:",
+    "RULE 3 - TIMER SAFETY:",
     "  let timerId = null;",
-    "  // Before starting any new timer:",
-    "  if (timerId) { clearInterval(timerId); timerId = null; }",
-    "  timerId = setInterval(gameTick, 1000);",
-    "  // On EVERY screen change: clearInterval(timerId); timerId = null;",
+    "  Before starting: if (timerId) { clearInterval(timerId); timerId = null; }",
+    "  timerId = setInterval(tick, 1000);",
+    "  On every screen change: clearInterval(timerId); timerId = null;",
     "",
-    "RULE 4 - WORKING PLAY AGAIN BUTTON (MANDATORY - MUST WORK PERFECTLY):",
+    "RULE 4 - WORKING PLAY AGAIN:",
     "  function restartGame() {",
     "    if (timerId) { clearInterval(timerId); timerId = null; }",
-    "    score = 0; currentIndex = 0; combo = 0; streak = 0;",
-    "    // Reset ALL game state variables",
-    "    startGame(); // fresh start",
+    "    score = 0; currentIndex = 0; combo = 0;",
+    "    // reset ALL state vars, re-shuffle data",
+    "    startGame();",
     "  }",
     "",
-    "RULE 5 - PREVENT DOUBLE-CLICK BUGS:",
-    "  Immediately after player answers, disable all answer buttons:",
-    "  document.querySelectorAll('.answer-btn').forEach(b => b.disabled = true);",
-    "  Re-enable when next question renders.",
+    "RULE 5 - PREVENT DOUBLE CLICKS:",
+    "  After answer selected: immediately disable all answer elements.",
+    "  Re-enable when next question loads.",
     "",
-    "RULE 6 - NO UNDEFINED VARIABLE ERRORS:",
-    "  - Declare ALL variables with let/const BEFORE use",
-    "  - Always check: if (currentIndex < questions.length) before questions[currentIndex]",
-    "  - All functions must be DEFINED before they are CALLED",
-    "  - Never use variable before declaring it",
+    "RULE 6 - NO ERRORS:",
+    "  Declare all variables before use. Check bounds before array access.",
+    "  All functions defined before called. No undefined variable references.",
     "",
-    "=== TECHNICAL CONSTRAINTS ===",
-    "- Single self-contained HTML file only: <!DOCTYPE html>...</html>",
-    "- All CSS inside <style> tags - NO external stylesheets, NO CDN font/icon links",
-    "- All JS inside <script> tags - NO external scripts, NO CDN links, NO fetch() to APIs",
-    "- Must work completely offline",
-    "- Responsive: works on desktop (1024px+) and mobile (375px+)",
-    "- All question data hardcoded as JS const array at top of <script>",
+    "============================================================",
+    "TECHNICAL CONSTRAINTS",
+    "============================================================",
+    "- Single HTML file ONLY: <!DOCTYPE html>...</html>",
+    "- All CSS in <style> - NO CDN, NO Google Fonts URL, NO external stylesheets",
+    "- All JS in <script> - NO CDN, NO external scripts, NO fetch() to APIs",
+    "- Works completely offline",
+    "- Responsive: desktop 1024px+ and mobile 375px+",
+    "- All data hardcoded in JS const/array inside <script>",
     "",
-    "=== OUTPUT FORMAT ===",
-    "Return ONLY the HTML file content.",
-    "Start with: <!DOCTYPE html>",
-    "End with: </html>",
-    "No markdown fences. No backticks. No explanations. Pure HTML only.",
+    "============================================================",
+    "OUTPUT FORMAT",
+    "============================================================",
+    "Return ONLY the HTML code.",
+    "First line: <!DOCTYPE html>",
+    "Last line: </html>",
+    "No markdown, no backticks, no explanations. PURE HTML ONLY.",
   ];
 
-  return lines.filter(l => l !== null && l !== undefined).join("\n");
+  return lines.filter(Boolean).join("\n");
 }
