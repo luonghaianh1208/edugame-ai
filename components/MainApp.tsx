@@ -5,8 +5,9 @@ import { Settings, GraduationCap, Gamepad2, Github, Sparkles } from "lucide-reac
 import InputPanel, { GameParams } from "./InputPanel";
 import CodePanel from "./CodePanel";
 import PreviewPanel from "./PreviewPanel";
-import ChatPanel, { ChatMessage } from "./ChatPanel";
+import QuestionEditorPanel, { EditorSettings } from "./QuestionEditorPanel";
 import ApiKeyModal from "./ApiKeyModal";
+import { GameQuestion } from "@/lib/templates/types";
 
 interface Toast {
   message: string;
@@ -15,23 +16,32 @@ interface Toast {
 
 export default function MainApp() {
   const [code, setCode] = useState("");
+  const [currentQuestions, setCurrentQuestions] = useState<GameQuestion[]>([]);
+  const [editorSettings, setEditorSettings] = useState<EditorSettings>({
+    templateId: "rpg-battle",
+    playerMode: "1p",
+    player1Name: "Người chơi 1",
+    player2Name: "Người chơi 2",
+    player3Name: "Người chơi 3",
+    player4Name: "Người chơi 4",
+  });
+  const [currentTopic, setCurrentTopic] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isChatLoading, setIsChatLoading] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isApplying, setIsApplying] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [activeTab, setActiveTab] = useState<"code" | "preview">("preview");
 
   // ── Resizable panel widths ───────────────────────────────────────
-  const [leftW,  setLeftW]  = useState(290);   // InputPanel width px
-  const [rightW, setRightW] = useState(265);   // ChatPanel width px
-  const [midSplit, setMidSplit] = useState(0.5); // 0..1 ratio for panels 2 & 3
+  const [leftW,  setLeftW]  = useState(290);
+  const [rightW, setRightW] = useState(280);
+  const [midSplit, setMidSplit] = useState(0.5);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
-    handle: "L" | "M" | "R"; // Left, Mid, Right divider
+    handle: "L" | "M" | "R";
     startX: number;
-    startVal: number;        // initial leftW / midSplit / rightW
+    startVal: number;
     containerW: number;
   } | null>(null);
 
@@ -52,14 +62,11 @@ export default function MainApp() {
       const { handle, startX, startVal, containerW } = dragRef.current;
       const dx = ev.clientX - startX;
       const MIN = 160;
-
       if (handle === "L") {
         setLeftW(Math.max(MIN, Math.min(startVal + dx, containerW * 0.4)));
       } else if (handle === "R") {
         setRightW(Math.max(MIN, Math.min(startVal - dx, containerW * 0.4)));
       } else {
-        // midSplit: fraction (0..1) of middle area for panel-2
-        // midWidth = containerW - leftW - rightW - 6 (3 dividers × 2px)
         const midW = containerW - leftW - rightW - 6;
         const newSplit = Math.max(0.15, Math.min(0.85, startVal + dx / midW));
         setMidSplit(newSplit);
@@ -76,11 +83,10 @@ export default function MainApp() {
     window.addEventListener("mouseup", onUp);
   }, [leftW, rightW, midSplit]);
 
-  // Load API key from localStorage
   useEffect(() => {
     const saved = localStorage.getItem("edugame_api_key");
     if (saved) setApiKey(saved);
-    else setShowKeyModal(true); // Show modal on first visit
+    else setShowKeyModal(true);
   }, []);
 
   function showToast(message: string, type: "success" | "error") {
@@ -98,7 +104,7 @@ export default function MainApp() {
     if (!apiKey) { setShowKeyModal(true); return; }
     setIsGenerating(true);
     setCode("");
-    setChatMessages([]);
+    setCurrentQuestions([]);
     setActiveTab("code");
 
     try {
@@ -110,17 +116,22 @@ export default function MainApp() {
 
       const data = await res.json();
 
-      if (!res.ok) {
-        showToast(data.error || "Lỗi tạo game", "error");
-        return;
-      }
-
-      if (!data.html) {
-        showToast("AI không trả về game hợp lệ. Hãy thử lại.", "error");
-        return;
-      }
+      if (!res.ok) { showToast(data.error || "Lỗi tạo game", "error"); return; }
+      if (!data.html) { showToast("AI không trả về game hợp lệ. Hãy thử lại.", "error"); return; }
 
       setCode(data.html);
+      if (data.questions) setCurrentQuestions(data.questions);
+
+      // Update editor settings from params
+      setCurrentTopic(params.topic);
+      setEditorSettings(prev => ({
+        ...prev,
+        templateId: params.templateId,
+        playerMode: params.playerMode as EditorSettings["playerMode"],
+        player1Name: params.player1Name || prev.player1Name,
+        player2Name: params.player2Name || prev.player2Name,
+      }));
+
       showToast(`🎮 Game đã tạo xong! ${data.questionCount} câu hỏi`, "success");
       setTimeout(() => setActiveTab("preview"), 400);
 
@@ -131,112 +142,36 @@ export default function MainApp() {
     }
   }, [apiKey]);
 
-  const handleChatSend = useCallback(async (message: string) => {
-    if (!apiKey) { setShowKeyModal(true); return; }
-
-    const userMsg: ChatMessage = { role: "user", content: message };
-    setChatMessages(prev => [...prev, userMsg]);
-    setIsChatLoading(true);
-
+  const handleApplyToGame = useCallback(async (questions: GameQuestion[], settings: EditorSettings) => {
+    if (questions.length === 0) return;
+    setIsApplying(true);
     try {
-      const res = await fetch("/api/chat-fix", {
+      const res = await fetch("/api/rebuild-game", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentCode: code, message, apiKey }),
+        body: JSON.stringify({
+          questions,
+          templateId: settings.templateId,
+          topic: currentTopic || "Kiến thức tổng hợp",
+          playerMode: settings.playerMode,
+          player1Name: settings.player1Name,
+          player2Name: settings.player2Name,
+          player3Name: settings.player3Name,
+          player4Name: settings.player4Name,
+        }),
       });
-
-      // Non-streaming error (e.g. 401, 400, 500 JSON)
-      if (!res.ok) {
-        let errMsg = "Lỗi server.";
-        try { const d = await res.json(); errMsg = d.error || errMsg; } catch {}
-        setChatMessages(prev => [...prev, { role: "assistant", content: `❌ ${errMsg}` }]);
-        return;
-      }
-
-      // ── Stream reading ───────────────────────────────────────────
-      const reader = res.body!.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let fullText = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        fullText += decoder.decode(value, { stream: true });
-      }
-
-      // ── Parse [REPLY] and extract code with 3-tier fallback ──────
-      // Extract reply text (everything before [CODE] if present)
-      const replyMatch = fullText.match(/\[REPLY\]([\s\S]*?)(?=\[CODE\]|$)/i);
-      const replyText = replyMatch ? replyMatch[1].trim() : fullText.split(/```html?/i)[0].replace(/\[REPLY\]/i, "").trim();
-
-      // Tier 1: explicit [CODE]...[/CODE] delimiter
-      let patchedCode: string | null = null;
-      const t1 = fullText.match(/\[CODE\]([\s\S]*?)\[\/CODE\]/i);
-      if (t1) {
-        patchedCode = t1[1].trim().replace(/^```html?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-      }
-
-      // Tier 2: markdown ```html or ``` fences containing <!DOCTYPE
-      if (!patchedCode) {
-        const t2 = fullText.match(/```html?\s*([\s\S]*?)```/i);
-        if (t2 && t2[1].toLowerCase().includes("<!doctype html")) {
-          patchedCode = t2[1].trim();
-        }
-      }
-
-      // Tier 3: raw <!DOCTYPE html ... </html> block anywhere in text
-      if (!patchedCode) {
-        const t3 = fullText.match(/(<!DOCTYPE html[\s\S]*?<\/html>)/i);
-        if (t3) {
-          patchedCode = t3[1].trim();
-        }
-      }
-
-      // Validate HTML
-      if (patchedCode && !patchedCode.toLowerCase().includes("<!doctype html")) {
-        patchedCode = null;
-      }
-
-      // Check for stream error
-      if (fullText.includes("__CHAT_ERROR__:")) {
-        const errMsg = fullText.split("__CHAT_ERROR__:")[1]?.split("\n")[0] || "Lỗi AI";
-        setChatMessages(prev => [...prev, { role: "assistant", content: `❌ Lỗi AI: ${errMsg}` }]);
-        return;
-      }
-
-      const hasCodeUpdate = false;  // not applied yet - user must click Apply
-      setChatMessages(prev => [...prev, {
-        role: "assistant",
-        content: replyText || (patchedCode ? "🔧 AI đã chuẩn bị code chỉnh sửa. Bấm Áp dụng để cập nhật." : "Đã xử lý yêu cầu."),
-        hasCodeUpdate,
-        pendingCode: patchedCode ?? undefined,
-      }]);
-
-      // Do NOT auto-apply - user must click the Apply button in chat
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Lỗi không xác định";
-      setChatMessages(prev => [...prev, {
-        role: "assistant",
-        content: `❌ Lỗi: ${msg}. Hãy kiểm tra kết nối mạng và thử lại.`,
-      }]);
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || "Lỗi cập nhật game", "error"); return; }
+      setCode(data.html);
+      setCurrentQuestions(questions);
+      showToast(`✅ Game đã được cập nhật với ${data.questionCount} câu hỏi!`, "success");
+      setActiveTab("preview");
+    } catch {
+      showToast("Lỗi kết nối server khi cập nhật game.", "error");
     } finally {
-      setIsChatLoading(false);
+      setIsApplying(false);
     }
-  }, [apiKey, code]);
-
-  // Apply code patch when user clicks the Apply button in the chat
-  const handleApplyCode = useCallback((code: string) => {
-    setCode(code);
-    // Mark the message as applied (remove pendingCode)
-    setChatMessages(prev =>
-      prev.map(m => m.pendingCode === code
-        ? { ...m, pendingCode: undefined, hasCodeUpdate: true }
-        : m
-      )
-    );
-    showToast("✅ Code đã được áp dụng vào editor!", "success");
-    setActiveTab("preview");
-  }, []);
+  }, [currentTopic]);
 
   const hasKey = !!apiKey;
 
@@ -250,7 +185,6 @@ export default function MainApp() {
         borderBottom: "1px solid var(--border)",
         flexShrink: 0,
       }}>
-        {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 9,
@@ -268,7 +202,6 @@ export default function MainApp() {
           </span>
         </div>
 
-        {/* Center tabs for code/preview on smaller screens */}
         <div style={{ display: "flex", gap: 2, background: "var(--bg-tertiary)", padding: 3, borderRadius: 8, border: "1px solid var(--border)" }}>
           {[
             { key: "preview", icon: <Gamepad2 size={13} />, label: "Preview" },
@@ -291,7 +224,6 @@ export default function MainApp() {
           ))}
         </div>
 
-        {/* Right actions */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
             <div style={{
@@ -319,7 +251,7 @@ export default function MainApp() {
         </div>
       </nav>
 
-      {/* Main layout: 4 panels with drag-to-resize dividers */}
+      {/* Main layout */}
       <div
         ref={containerRef}
         style={{
@@ -327,29 +259,24 @@ export default function MainApp() {
           overflow: "hidden", background: "var(--border)", gap: 0,
         }}
       >
-        {/* ── Panel 1: Input ── */}
+        {/* Panel 1: Input */}
         <div style={{ width: leftW, flexShrink: 0, background: "var(--bg-secondary)", overflow: "hidden", display: "flex", flexDirection: "column", minWidth: 0 }}>
           <InputPanel onGenerate={handleGenerate} isGenerating={isGenerating} />
         </div>
 
-        {/* ── Divider L ── */}
+        {/* Divider L */}
         <div
           onMouseDown={e => startDrag(e, "L")}
-          style={{
-            width: 4, flexShrink: 0, background: "var(--border)",
-            cursor: "col-resize", transition: "background 0.15s",
-            position: "relative",
-          }}
+          style={{ width: 4, flexShrink: 0, background: "var(--border)", cursor: "col-resize", transition: "background 0.15s", position: "relative" }}
           onMouseEnter={e => (e.currentTarget.style.background = "var(--accent-blue)")}
           onMouseLeave={e => (e.currentTarget.style.background = "var(--border)")}
         >
-          {/* Visual grip dots */}
           <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", display: "flex", flexDirection: "column", gap: 3 }}>
             {[0,1,2].map(i => <div key={i} style={{ width: 2, height: 2, borderRadius: "50%", background: "var(--text-muted)", opacity: 0.6 }} />)}
           </div>
         </div>
 
-        {/* ── Panel 2: Code or Preview (tabbed) ── */}
+        {/* Panel 2: Code or Preview (tabbed) */}
         <div style={{ flex: midSplit, minWidth: 0, background: "var(--bg-secondary)", overflow: "hidden", position: "relative" }}>
           <div style={{ position: "absolute", inset: 0, opacity: activeTab === "code" ? 1 : 0, pointerEvents: activeTab === "code" ? "auto" : "none", zIndex: activeTab === "code" ? 1 : 0 }}>
             <CodePanel code={code} onChange={setCode} isStreaming={isGenerating} />
@@ -359,14 +286,10 @@ export default function MainApp() {
           </div>
         </div>
 
-        {/* ── Divider M (between panels 2 & 3) ── */}
+        {/* Divider M */}
         <div
           onMouseDown={e => startDrag(e, "M")}
-          style={{
-            width: 4, flexShrink: 0, background: "var(--border)",
-            cursor: "col-resize", transition: "background 0.15s",
-            position: "relative",
-          }}
+          style={{ width: 4, flexShrink: 0, background: "var(--border)", cursor: "col-resize", transition: "background 0.15s", position: "relative" }}
           onMouseEnter={e => (e.currentTarget.style.background = "var(--accent-blue)")}
           onMouseLeave={e => (e.currentTarget.style.background = "var(--border)")}
         >
@@ -375,7 +298,7 @@ export default function MainApp() {
           </div>
         </div>
 
-        {/* ── Panel 3: Preview or Code (the other one) ── */}
+        {/* Panel 3: Preview or Code (the other one) */}
         <div style={{ flex: 1 - midSplit, minWidth: 0, background: "var(--bg-secondary)", overflow: "hidden" }}>
           {activeTab === "preview" ? (
             <CodePanel code={code} onChange={setCode} isStreaming={isGenerating} />
@@ -384,14 +307,10 @@ export default function MainApp() {
           )}
         </div>
 
-        {/* ── Divider R ── */}
+        {/* Divider R */}
         <div
           onMouseDown={e => startDrag(e, "R")}
-          style={{
-            width: 4, flexShrink: 0, background: "var(--border)",
-            cursor: "col-resize", transition: "background 0.15s",
-            position: "relative",
-          }}
+          style={{ width: 4, flexShrink: 0, background: "var(--border)", cursor: "col-resize", transition: "background 0.15s", position: "relative" }}
           onMouseEnter={e => (e.currentTarget.style.background = "var(--accent-blue)")}
           onMouseLeave={e => (e.currentTarget.style.background = "var(--border)")}
         >
@@ -400,14 +319,14 @@ export default function MainApp() {
           </div>
         </div>
 
-        {/* ── Panel 4: AI Chat ── */}
+        {/* Panel 4: Question Editor (replaces AI Chat) */}
         <div style={{ width: rightW, flexShrink: 0, background: "var(--bg-secondary)", overflow: "hidden", display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <ChatPanel
-            messages={chatMessages}
-            onSend={handleChatSend}
-            onApplyCode={handleApplyCode}
-            isLoading={isChatLoading}
-            hasCode={!!code}
+          <QuestionEditorPanel
+            questions={currentQuestions}
+            editorSettings={editorSettings}
+            isApplying={isApplying}
+            onApply={handleApplyToGame}
+            onSettingsChange={setEditorSettings}
           />
         </div>
       </div>

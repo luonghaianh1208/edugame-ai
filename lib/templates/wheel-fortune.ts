@@ -1,6 +1,14 @@
 import { GameQuestion, GameSettings } from './types';
 
 export function wheelFortuneTemplate(questions: GameQuestion[], settings: GameSettings): string {
+  const playerCount = parseInt(settings.playerMode[0]) || 1;
+  const playerNames = [
+    settings.player1Name || 'Người chơi 1',
+    settings.player2Name || 'Người chơi 2',
+    settings.player3Name || 'Người chơi 3',
+    settings.player4Name || 'Người chơi 4',
+  ].slice(0, playerCount);
+
   return `<!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -10,21 +18,24 @@ export function wheelFortuneTemplate(questions: GameQuestion[], settings: GameSe
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',sans-serif;background:#070b18;color:#e2e8f0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px}
-#game{width:100%;max-width:680px;display:flex;flex-direction:column;gap:12px}
+#game{width:100%;max-width:700px;display:flex;flex-direction:column;gap:12px}
 /* Wheel */
 #wheel-area{display:flex;flex-direction:column;align-items:center;gap:8px}
-#wheel-wrap{position:relative;width:220px;height:220px}
-#wheel-canvas{border-radius:50%;box-shadow:0 0 32px rgba(14,165,233,.4);transition:transform 3s cubic-bezier(.17,.67,.12,.99)}
-#pointer{position:absolute;top:-8px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-top:24px solid #f59e0b;filter:drop-shadow(0 2px 6px rgba(245,158,11,.8))}
-#spin-btn{padding:10px 32px;border-radius:12px;border:none;background:linear-gradient(135deg,#0ea5e9,#38bdf8);color:#fff;font-size:15px;font-weight:800;cursor:pointer;transition:all .2s}
+#wheel-wrap{position:relative;width:210px;height:210px}
+#wheel-canvas{border-radius:50%;box-shadow:0 0 32px rgba(14,165,233,.4)}
+#pointer{position:absolute;top:-8px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:11px solid transparent;border-right:11px solid transparent;border-top:22px solid #f59e0b;filter:drop-shadow(0 2px 6px rgba(245,158,11,.8))}
+#spin-btn{padding:9px 28px;border-radius:12px;border:none;background:linear-gradient(135deg,#0ea5e9,#38bdf8);color:#fff;font-size:14px;font-weight:800;cursor:pointer;transition:all .2s}
 #spin-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 20px rgba(14,165,233,.5)}
 #spin-btn:disabled{opacity:.5;cursor:not-allowed}
-#multiplier-badge{font-size:22px;font-weight:900;text-align:center;padding:6px 18px;border-radius:12px;background:rgba(14,165,233,.15);border:1px solid rgba(14,165,233,.3);min-width:80px}
-/* Score */
-.hud{display:flex;justify-content:center;gap:24px}
-.hud-chip{display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(255,255,255,.05);border-radius:9px;padding:8px 16px;border:1px solid rgba(255,255,255,.08)}
-.chip-val{font-size:24px;font-weight:900;color:#38bdf8}
-.chip-label{font-size:10px;color:#64748b;font-weight:700;letter-spacing:.05em}
+#multiplier-badge{font-size:20px;font-weight:900;text-align:center;padding:6px 16px;border-radius:12px;background:rgba(14,165,233,.15);border:1px solid rgba(14,165,233,.3);min-width:70px}
+/* Scoreboard */
+#scoreboard{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
+.score-card{display:flex;flex-direction:column;align-items:center;padding:8px 12px;border-radius:10px;border:2px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);min-width:70px;transition:all .3s}
+.score-card.active{border-color:#0ea5e9;background:rgba(14,165,233,.12);box-shadow:0 0 12px rgba(14,165,233,.3)}
+.score-card.active .sc-name{color:#38bdf8}
+.sc-name{font-size:10px;font-weight:700;color:#64748b;letter-spacing:.04em;margin-bottom:2px}
+.sc-val{font-size:22px;font-weight:900;color:#f1f5f9}
+#q-left-chip{display:flex;flex-direction:column;align-items:center;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04)}
 /* Q panel */
 .panel{background:rgba(255,255,255,.04);border-radius:14px;padding:14px;border:1px solid rgba(255,255,255,.08)}
 .q-label{font-size:11px;color:#38bdf8;font-weight:700;letter-spacing:.05em;margin-bottom:8px}
@@ -37,21 +48,24 @@ body{font-family:'Segoe UI',sans-serif;background:#070b18;color:#e2e8f0;min-heig
 .ans-btn:disabled{cursor:default}
 #explain{margin-top:8px;padding:8px;background:rgba(0,0,0,.3);border-radius:8px;font-size:12px;color:#7dd3fc;border-left:3px solid #0ea5e9;display:none;line-height:1.5}
 #q-panel{display:none}
-#wheel-hint{font-size:13px;color:#475569;text-align:center}
+#wheel-hint{font-size:12px;color:#475569;text-align:center}
+#turn-indicator{font-size:12px;font-weight:700;color:#38bdf8;text-align:center;padding:4px 0}
 #intro,#result{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#070b18;z-index:10;gap:14px;padding:32px}
-.big-emoji{font-size:64px}
-.title-main{font-size:24px;font-weight:800;background:linear-gradient(135deg,#0ea5e9,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.big-emoji{font-size:60px}
+.title-main{font-size:23px;font-weight:800;background:linear-gradient(135deg,#0ea5e9,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .desc{color:#94a3b8;text-align:center;max-width:400px;line-height:1.6}
 .btn-start{padding:12px 32px;border-radius:12px;border:none;background:linear-gradient(135deg,#0ea5e9,#38bdf8);color:#fff;font-size:15px;font-weight:800;cursor:pointer;transition:all .2s}
 .btn-start:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(14,165,233,.5)}
+/* Turn overlay for multi-player */
+#turn-overlay{display:none;position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.85);flex-direction:column;align-items:center;justify-content:center;gap:12px}
 </style>
 </head>
 <body>
 <div id="intro">
   <div class="big-emoji">🎡</div>
   <div class="title-main">Vòng Quay Vận Mệnh</div>
-  <div class="desc">Quay bánh xe để nhận nhân điểm 🎰 Rồi trả lời câu hỏi để nhân điểm đó! ×3 mà đúng thì cực kỳ lợi!</div>
-  <div style="color:#38bdf8;font-weight:700;font-size:13px">Chủ đề: ${settings.topic} | ${questions.length} câu hỏi</div>
+  <div class="desc">${playerCount > 1 ? `${playerCount} người chơi thay nhau quay bánh xe! Mỗi người spin → nhận nhân điểm → trả lời câu hỏi. Ai tổng điểm cao nhất sau tất cả câu hỏi thắng!` : 'Quay bánh xe để nhận nhân điểm 🎰 Rồi trả lời câu hỏi để nhân điểm đó! ×3 mà đúng thì cực kỳ lợi!'}</div>
+  <div style="color:#38bdf8;font-weight:700;font-size:13px">Chủ đề: ${settings.topic} | ${questions.length} câu hỏi | ${playerCount} người chơi</div>
   <button class="btn-start" onclick="startGame()">🎡 Quay Thôi!</button>
 </div>
 
@@ -62,15 +76,26 @@ body{font-family:'Segoe UI',sans-serif;background:#070b18;color:#e2e8f0;min-heig
   <button class="btn-start" onclick="restartGame()">🔄 Quay Lại</button>
 </div>
 
+<!-- Turn overlay for multi-player -->
+<div id="turn-overlay">
+  <div id="turn-ov-emoji" style="font-size:56px"></div>
+  <div id="turn-ov-label" style="font-size:22px;font-weight:800;color:#f1f5f9"></div>
+  <div style="font-size:13px;color:#94a3b8">Lượt quay của bạn! Chuẩn bị...</div>
+</div>
+
 <div id="game" style="display:none">
-  <div class="hud">
-    <div class="hud-chip"><div class="chip-val" id="score-val">0</div><div class="chip-label">TỔNG ĐIỂM</div></div>
-    <div class="hud-chip"><div class="chip-val" id="q-left">${questions.length}</div><div class="chip-label">CÂU CÒN LẠI</div></div>
+  <div id="scoreboard">
+    ${playerNames.map((n, i) => `<div class="score-card${i === 0 ? ' active' : ''}" id="sc-${i}"><div class="sc-name">${n}</div><div class="sc-val" id="sc-val-${i}">0</div></div>`).join('')}
+    <div id="q-left-chip" style="display:flex;flex-direction:column;align-items:center;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04)">
+      <div style="font-size:22px;font-weight:900;color:#38bdf8" id="q-left">${questions.length}</div>
+      <div style="font-size:10px;color:#64748b;font-weight:700">CÒN LẠI</div>
+    </div>
   </div>
+  <div id="turn-indicator">${playerCount > 1 ? `🎯 Lượt: ${playerNames[0]}` : '🎡 Vòng Quay Vận Mệnh'}</div>
   <div class="panel" style="padding:12px">
     <div id="wheel-area">
       <div id="wheel-wrap">
-        <canvas id="wheel-canvas" width="220" height="220"></canvas>
+        <canvas id="wheel-canvas" width="210" height="210"></canvas>
         <div id="pointer"></div>
       </div>
       <div id="multiplier-badge">× ?</div>
@@ -88,14 +113,18 @@ body{font-family:'Segoe UI',sans-serif;background:#070b18;color:#e2e8f0;min-heig
 
 <script>
 var questions = ${JSON.stringify(questions)};
+var PLAYER_COUNT = ${playerCount};
+var PLAYER_NAMES = ${JSON.stringify(playerNames)};
+var PLAYER_COLORS = ['#38bdf8','#f97316','#a855f7','#10b981'];
 var SEGMENTS = [
   {label:'×1',mult:1,color:'#1e3a5f'},{label:'×2',mult:2,color:'#1e4d40'},{label:'×3',mult:3,color:'#4c1d95'},
   {label:'MISS',mult:0,color:'#7f1d1d'},{label:'×2',mult:2,color:'#1e3a5f'},{label:'×1',mult:1,color:'#1e4d40'},
   {label:'×3',mult:3,color:'#1e3a5f'},{label:'×2',mult:2,color:'#4c1d95'}
 ];
 var SEGMENT_ANGLE = (Math.PI * 2) / SEGMENTS.length;
+var scores = new Array(PLAYER_COUNT).fill(0);
+var currentPlayer = 0;
 var currentMultiplier = 1;
-var score = 0;
 var qIndex = 0;
 var wheelAngle = 0;
 var spinning = false;
@@ -104,38 +133,36 @@ var canAnswer = false;
 function drawWheel(angle) {
   var canvas = document.getElementById('wheel-canvas');
   var ctx = canvas.getContext('2d');
-  var cx = 110, cy = 110, r = 106;
-  ctx.clearRect(0, 0, 220, 220);
+  var cx = 105, cy = 105, r = 101;
+  ctx.clearRect(0, 0, 210, 210);
   for (var i = 0; i < SEGMENTS.length; i++) {
     var start = angle + i * SEGMENT_ANGLE - Math.PI / 2;
     var end = start + SEGMENT_ANGLE;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r, start, end);
-    ctx.closePath();
-    ctx.fillStyle = SEGMENTS[i].color;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,.15)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    // Label
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(start + SEGMENT_ANGLE / 2);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#f1f5f9';
-    ctx.font = 'bold 14px Segoe UI';
-    ctx.fillText(SEGMENTS[i].label, r - 12, 5);
-    ctx.restore();
+    ctx.beginPath(); ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, start, end); ctx.closePath();
+    ctx.fillStyle = SEGMENTS[i].color; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(start + SEGMENT_ANGLE / 2);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#f1f5f9'; ctx.font = 'bold 13px Segoe UI';
+    ctx.fillText(SEGMENTS[i].label, r - 10, 5); ctx.restore();
   }
-  // Center circle
-  ctx.beginPath();
-  ctx.arc(cx, cy, 18, 0, Math.PI * 2);
-  ctx.fillStyle = '#0f172a';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,.2)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, 16, 0, Math.PI * 2);
+  ctx.fillStyle = '#0f172a'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.2)'; ctx.lineWidth = 2; ctx.stroke();
+}
+
+function updateScoreCards() {
+  for (var i = 0; i < PLAYER_COUNT; i++) {
+    var card = document.getElementById('sc-' + i);
+    if (card) {
+      card.className = 'score-card' + (i === currentPlayer ? ' active' : '');
+      document.getElementById('sc-val-' + i).textContent = scores[i];
+    }
+  }
+  if (PLAYER_COUNT > 1) {
+    document.getElementById('turn-indicator').textContent = '🎯 Lượt: ' + PLAYER_NAMES[currentPlayer];
+    document.getElementById('turn-indicator').style.color = PLAYER_COLORS[currentPlayer];
+  }
 }
 
 function spinWheel() {
@@ -146,33 +173,25 @@ function spinWheel() {
   document.getElementById('multiplier-badge').textContent = '× ?';
   var spins = (Math.random() * 4 + 4) * Math.PI * 2;
   var finalAngle = wheelAngle + spins;
-  var start = null;
-  var duration = 3000;
+  var startTs = null, duration = 3000;
   function animate(ts) {
-    if (!start) start = ts;
-    var progress = Math.min((ts - start) / duration, 1);
+    if (!startTs) startTs = ts;
+    var progress = Math.min((ts - startTs) / duration, 1);
     var ease = 1 - Math.pow(1 - progress, 3);
-    var angle = wheelAngle + spins * ease;
-    drawWheel(angle);
-    if (progress < 1) {
-      requestAnimationFrame(animate);
+    drawWheel(wheelAngle + spins * ease);
+    if (progress < 1) { requestAnimationFrame(animate); return; }
+    wheelAngle = finalAngle % (Math.PI * 2);
+    var ptrAngle = (Math.PI * 2 - wheelAngle + Math.PI * 2) % (Math.PI * 2);
+    var segIdx = Math.floor(ptrAngle / SEGMENT_ANGLE) % SEGMENTS.length;
+    var seg = SEGMENTS[segIdx];
+    currentMultiplier = seg.mult;
+    spinning = false;
+    document.getElementById('multiplier-badge').textContent = seg.mult === 0 ? '💥 MISS' : '× ' + seg.mult;
+    if (seg.mult === 0) {
+      // MISS — skip question, next player
+      setTimeout(function() { nextPlayerOrEnd(); }, 700);
     } else {
-      wheelAngle = finalAngle % (Math.PI * 2);
-      // Determine which segment is at top (pointer)
-      var ptrAngle = (Math.PI * 2 - wheelAngle % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
-      var segIdx = Math.floor(ptrAngle / SEGMENT_ANGLE) % SEGMENTS.length;
-      var seg = SEGMENTS[segIdx];
-      currentMultiplier = seg.mult;
-      spinning = false;
-      document.getElementById('multiplier-badge').textContent = seg.label === 'MISS' ? '💥 MISS' : '× ' + seg.mult;
-      if (seg.mult === 0) {
-        setTimeout(showNextQuestion, 600);
-      } else {
-        setTimeout(function() {
-          document.getElementById('spin-btn').disabled = true;
-          showQuestionPanel();
-        }, 600);
-      }
+      setTimeout(function() { showQuestionPanel(); }, 600);
     }
   }
   requestAnimationFrame(animate);
@@ -183,7 +202,7 @@ function showQuestionPanel() {
   var q = questions[qIndex];
   document.getElementById('q-num').textContent = qIndex + 1;
   document.getElementById('mult-label').textContent = '×' + currentMultiplier;
-  document.getElementById('q-text').textContent = q.q;
+  document.getElementById('q-text').textContent = (PLAYER_COUNT > 1 ? PLAYER_NAMES[currentPlayer] + ': ' : '') + q.q;
   var answersEl = document.getElementById('answers');
   answersEl.innerHTML = '';
   var labels = ['A','B','C','D'];
@@ -201,12 +220,6 @@ function showQuestionPanel() {
   document.getElementById('q-left').textContent = questions.length - qIndex;
 }
 
-function showNextQuestion() {
-  document.getElementById('spin-btn').disabled = false;
-  document.getElementById('wheel-hint').textContent = qIndex < questions.length ? 'Quay để nhận nhân điểm tiếp theo!' : 'Hết câu hỏi!';
-  if (qIndex >= questions.length) { setTimeout(endGame, 800); }
-}
-
 function handleAnswer(idx) {
   if (!canAnswer) return;
   canAnswer = false;
@@ -220,26 +233,62 @@ function handleAnswer(idx) {
   if (q.explain) {
     var ex = document.getElementById('explain');
     ex.style.display = 'block';
-    ex.textContent = ((idx === q.correct) ? '✅ ' : '❌ ') + q.explain;
+    ex.textContent = (idx === q.correct ? '✅ ' : '❌ ') + q.explain;
   }
   if (idx === q.correct) {
-    score += 10 * currentMultiplier;
-    document.getElementById('score-val').textContent = score;
+    scores[currentPlayer] += 10 * currentMultiplier;
+    updateScoreCards();
   }
-  setTimeout(showNextQuestion, 1300);
+  setTimeout(function() { nextPlayerOrEnd(); }, 1400);
+}
+
+function nextPlayerOrEnd() {
+  if (qIndex >= questions.length) { endGame(); return; }
+  if (PLAYER_COUNT === 1) {
+    document.getElementById('spin-btn').disabled = false;
+    document.getElementById('wheel-hint').textContent = 'Quay để nhận nhân điểm tiếp theo!';
+    document.getElementById('q-panel').style.display = 'none';
+    return;
+  }
+  // Multi-player: switch to next player with overlay
+  currentPlayer = (currentPlayer + 1) % PLAYER_COUNT;
+  updateScoreCards();
+  var ov = document.getElementById('turn-overlay');
+  document.getElementById('turn-ov-emoji').textContent = '🎡';
+  document.getElementById('turn-ov-label').textContent = 'Lượt của ' + PLAYER_NAMES[currentPlayer];
+  ov.style.display = 'flex';
+  setTimeout(function() {
+    ov.style.display = 'none';
+    document.getElementById('spin-btn').disabled = false;
+    document.getElementById('q-panel').style.display = 'none';
+    document.getElementById('multiplier-badge').textContent = '× ?';
+    document.getElementById('wheel-hint').textContent = 'Quay để nhận nhân điểm!';
+  }, 1600);
 }
 
 function endGame() {
   document.getElementById('result').style.display = 'flex';
   document.getElementById('game').style.display = 'none';
-  document.getElementById('res-emoji').textContent = score >= 150 ? '🥇' : score >= 80 ? '🏆' : '🎡';
-  document.getElementById('res-title').textContent = score >= 150 ? 'Thiên Tài Vận May!' : 'Vòng Quay Kết Thúc!';
-  document.getElementById('res-desc').textContent = 'Tổng điểm: ' + score + ' | Hoàn thành ' + Math.min(qIndex, questions.length) + '/' + questions.length + ' câu';
+  if (PLAYER_COUNT === 1) {
+    var s = scores[0];
+    document.getElementById('res-emoji').textContent = s >= 150 ? '🥇' : s >= 80 ? '🏆' : '🎡';
+    document.getElementById('res-title').textContent = s >= 150 ? 'Thiên Tài Vận May!' : 'Vòng Quay Kết Thúc!';
+    document.getElementById('res-desc').textContent = 'Tổng điểm: ' + s + ' | Hoàn thành ' + Math.min(qIndex, questions.length) + '/' + questions.length + ' câu';
+  } else {
+    var maxScore = Math.max.apply(null, scores);
+    var winnerIdx = scores.indexOf(maxScore);
+    var allTied = scores.every(function(s) { return s === maxScore; });
+    document.getElementById('res-emoji').textContent = allTied ? '🤝' : '🏆';
+    document.getElementById('res-title').textContent = allTied ? 'Hoà Cả Làng!' : PLAYER_NAMES[winnerIdx] + ' Thắng!';
+    var desc = scores.map(function(s, i) { return PLAYER_NAMES[i] + ': ' + s; }).join(' | ');
+    document.getElementById('res-desc').textContent = desc;
+  }
 }
 
 function startGame() {
-  score = 0; qIndex = 0; currentMultiplier = 1; wheelAngle = 0;
-  document.getElementById('score-val').textContent = '0';
+  scores = new Array(PLAYER_COUNT).fill(0);
+  currentPlayer = 0;
+  qIndex = 0; currentMultiplier = 1; wheelAngle = 0;
   document.getElementById('q-left').textContent = questions.length;
   document.getElementById('intro').style.display = 'none';
   document.getElementById('result').style.display = 'none';
@@ -248,6 +297,7 @@ function startGame() {
   document.getElementById('spin-btn').disabled = false;
   document.getElementById('multiplier-badge').textContent = '× ?';
   document.getElementById('wheel-hint').textContent = 'Quay vòng để nhận nhân điểm cho câu hỏi tiếp theo';
+  updateScoreCards();
   drawWheel(0);
 }
 

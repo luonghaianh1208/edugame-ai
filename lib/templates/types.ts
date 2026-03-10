@@ -8,14 +8,16 @@ export interface GameQuestion {
 
 export interface GameSettings {
   topic: string;
-  difficulty: string;   // 'easy' | 'medium' | 'hard'
+  difficulty: string;
   useTimer: boolean;
   useScoring: boolean;
   rewardPenalty: string;
   questionCount: number;
-  playerMode: '1p' | '2p';  // single player or 2-player hotseat
+  playerMode: '1p' | '2p' | '3p' | '4p';
   player1Name: string;
   player2Name: string;
+  player3Name: string;
+  player4Name: string;
 }
 
 // All 8 template IDs
@@ -100,6 +102,7 @@ export const TEMPLATES: TemplateInfo[] = [
     desc: 'Quay bánh xe để nhận nhân điểm, rồi trả lời câu hỏi để giành điểm!',
     color: 'linear-gradient(135deg, #0891b2, #06b6d4)',
     players: '1-4 người',
+    supportsMultiplayer: true,
   },
   {
     id: 'rpg-battle',
