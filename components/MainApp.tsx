@@ -237,17 +237,15 @@ export default function MainApp() {
         return;
       }
 
-      const hasCodeUpdate = !!patchedCode;
+      const hasCodeUpdate = false;  // not applied yet - user must click Apply
       setChatMessages(prev => [...prev, {
         role: "assistant",
-        content: replyText || (hasCodeUpdate ? "✅ Code đã được cập nhật thành công." : "Đã xử lý yêu cầu."),
+        content: replyText || (patchedCode ? "🔧 AI đã chuẩn bị code chỉnh sửa. Bấm Áp dụng để cập nhật." : "Đã xử lý yêu cầu."),
         hasCodeUpdate,
+        pendingCode: patchedCode ?? undefined,
       }]);
 
-      if (patchedCode) {
-        setCode(patchedCode);
-        showToast("Code đã được cập nhật! ✨", "success");
-      }
+      // Do NOT auto-apply - user must click the Apply button in chat
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Lỗi không xác định";
       setChatMessages(prev => [...prev, {
@@ -259,6 +257,19 @@ export default function MainApp() {
     }
   }, [apiKey, code]);
 
+  // Apply code patch when user clicks the Apply button in the chat
+  const handleApplyCode = useCallback((code: string) => {
+    setCode(code);
+    // Mark the message as applied (remove pendingCode)
+    setChatMessages(prev =>
+      prev.map(m => m.pendingCode === code
+        ? { ...m, pendingCode: undefined, hasCodeUpdate: true }
+        : m
+      )
+    );
+    showToast("✅ Code đã được áp dụng vào editor!", "success");
+    setActiveTab("preview");
+  }, []);
 
   const hasKey = !!apiKey;
 
@@ -427,6 +438,7 @@ export default function MainApp() {
           <ChatPanel
             messages={chatMessages}
             onSend={handleChatSend}
+            onApplyCode={handleApplyCode}
             isLoading={isChatLoading}
             hasCode={!!code}
           />

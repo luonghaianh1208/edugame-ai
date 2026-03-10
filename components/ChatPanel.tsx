@@ -1,31 +1,33 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { MessageSquare, Send, Bot, User, Loader2, WandSparkles, Trash2 } from "lucide-react";
+import { MessageSquare, Send, Bot, User, Loader2, WandSparkles, PlayCircle } from "lucide-react";
 
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   hasCodeUpdate?: boolean;
+  pendingCode?: string;        // code waiting for user approval
 }
 
 interface ChatPanelProps {
   messages: ChatMessage[];
   onSend: (message: string) => Promise<void>;
+  onApplyCode: (code: string) => void;   // new: called when user confirms apply
   isLoading: boolean;
   hasCode: boolean;
 }
 
 const QUICK_PROMPTS = [
+  "Sửa lỗi nút Bắt đầu không hoạt động",
   "Thêm hiệu ứng âm thanh khi trả lời đúng",
-  "Thay đổi màu nền thành gradient xanh-tím",
   "Thêm bảng xếp hạng điểm cao",
-  "Tăng kích thước chữ cho dễ đọc hơn",
-  "Thêm nút bỏ qua câu hỏi",
   "Hiển thị giải thích đáp án sau mỗi câu",
+  "Thêm nút bỏ qua câu hỏi",
+  "Thay đổi màu nền gradient xanh-tím",
 ];
 
-export default function ChatPanel({ messages, onSend, isLoading, hasCode }: ChatPanelProps) {
+export default function ChatPanel({ messages, onSend, onApplyCode, isLoading, hasCode }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -93,7 +95,7 @@ export default function ChatPanel({ messages, onSend, isLoading, hasCode }: Chat
                   GỢI Ý NHANH:
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {QUICK_PROMPTS.slice(0, 4).map((p, i) => (
+                  {QUICK_PROMPTS.map((p, i) => (
                     <button
                       key={i}
                       onClick={() => { setInput(p); inputRef.current?.focus(); }}
@@ -140,13 +142,42 @@ export default function ChatPanel({ messages, onSend, isLoading, hasCode }: Chat
                   style={{ maxWidth: "85%", padding: "10px 13px", fontSize: 13, lineHeight: 1.6 }}
                 >
                   {msg.content}
-                  {msg.hasCodeUpdate && (
+
+                  {/* Applied badge */}
+                  {msg.hasCodeUpdate && !msg.pendingCode && (
                     <div style={{
                       marginTop: 8, padding: "4px 8px", borderRadius: 5,
                       background: "rgba(63,185,80,0.1)", border: "1px solid rgba(63,185,80,0.3)",
                       fontSize: 11, color: "var(--accent-green)", display: "flex", alignItems: "center", gap: 5,
                     }}>
-                      ✅ Code đã được cập nhật
+                      ✅ Code đã được áp dụng
+                    </div>
+                  )}
+
+                  {/* Pending apply button */}
+                  {msg.pendingCode && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{
+                        padding: "8px 10px", borderRadius: 8,
+                        background: "rgba(56,139,253,0.08)", border: "1px solid rgba(56,139,253,0.25)",
+                        marginBottom: 8, fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5,
+                      }}>
+                        🔧 AI đã chuẩn bị code chỉnh sửa. Bấm <strong>Áp dụng</strong> để cập nhật game.
+                      </div>
+                      <button
+                        onClick={() => onApplyCode(msg.pendingCode!)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 7,
+                          padding: "9px 16px", borderRadius: 9, border: "none",
+                          background: "linear-gradient(135deg, #1f6feb, #388bfd)",
+                          color: "white", cursor: "pointer", fontSize: 13, fontWeight: 600,
+                          transition: "all 0.2s", width: "100%", justifyContent: "center",
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.transform = "translateY(-1px)")}
+                        onMouseLeave={e => (e.currentTarget.style.transform = "")}
+                      >
+                        <PlayCircle size={15} /> Áp dụng thay đổi vào Code
+                      </button>
                     </div>
                   )}
                 </div>

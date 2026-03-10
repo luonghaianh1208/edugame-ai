@@ -2,28 +2,44 @@ const fs = require('fs');
 const file = 'lib/prompts/gameGeneratorPrompt.ts';
 let c = fs.readFileSync(file, 'utf8');
 
-// Add SCRIPT PLACEMENT rule to Technical Constraints section
-const oldConstraints = `    "- Single HTML file ONLY: <!DOCTYPE html>...</html>",
-    "- All CSS in <style> - NO CDN, NO Google Fonts URL, NO external stylesheets",
-    "- All JS in <script> - NO CDN, NO external scripts, NO fetch() to APIs",
-    "- Works completely offline",`;
+// Critical data section to insert
+const dataSection = [
+  '    "============================================================",',
+  '    "MANDATORY: GENERATE COMPLETE REAL DATA - NO PLACEHOLDERS",',
+  '    "============================================================",',
+  '    "You MUST generate ALL " + questionCount + " items of real educational content inline inside the <script> tag.",',
+  '    "FORBIDDEN: const questions = []; // fill later",',
+  '    "FORBIDDEN: const questions = [/* ... items ... */];",',
+  '    "FORBIDDEN: leaving any array empty or with placeholder comments",',
+  '    "REQUIRED: const questions = [ {full object 1}, {full object 2}, ... all " + questionCount + " items ];",',
+  '    "",',
+  '    "Rules for data:",',
+  '    "- Generate every single item, do not stop early",',
+  '    "- Each item unique, factually correct, related to topic: \'" + topic + "\'",',
+  '    "- Do not use ellipsis \'...\' as shorthand for more items",',
+  '    "- If topic has fewer facts than " + questionCount + ", vary angles (definitions, examples, applications)",',
+  '    "",',
+].join('\n');
 
-const newConstraints = `    "- Single HTML file ONLY: <!DOCTYPE html>...</html>",
-    "- All CSS in <style> tag in <head> - NO CDN, NO Google Fonts URL, NO external stylesheets",
-    "- ALL <script> tags MUST be placed IMMEDIATELY BEFORE </body> - NEVER in <head>",
-    "- CRITICAL: Never call getElementById/querySelector or addEventListener at top level.",
-    "  All DOM interactions MUST be inside functions that are only called AFTER the DOM renders.",
-    "  Pattern: <script> function showIntro(){...} function startGame(){...} showIntro(); </script>",
-    "  The LAST line of the script calls the first screen function (showIntro or init).",
-    "- All JS in <script> - NO CDN, NO external scripts, NO fetch() to APIs",
-    "- Works completely offline",`;
-
-c = c.replace(oldConstraints, newConstraints);
-
-if (c.includes('IMMEDIATELY BEFORE </body>')) {
+const marker = '    "============================================================",\n    "EDUCATIONAL CONTENT",';
+if (c.includes(marker)) {
+  c = c.replace(marker, dataSection + '\n    "============================================================",\n    "EDUCATIONAL CONTENT",');
   fs.writeFileSync(file, c, 'utf8');
-  console.log('✅ Patched: script-at-body-end rule added');
+  console.log('Patched: mandatory real data section added before EDUCATIONAL CONTENT');
 } else {
-  console.error('❌ Target string not found - pattern may have changed');
-  process.exit(1);
+  // Try before OUTPUT FORMAT
+  const marker2 = '    "============================================================",\n    "OUTPUT FORMAT",';
+  if (c.includes(marker2)) {
+    c = c.replace(marker2, dataSection + '\n    "============================================================",\n    "OUTPUT FORMAT",');
+    fs.writeFileSync(file, c, 'utf8');
+    console.log('Patched (fallback): added before OUTPUT FORMAT');
+  } else {
+    // Append near end of lines array
+    c = c.replace(
+      '    "Return ONLY the HTML code.",',
+      dataSection + '\n    "Return ONLY the HTML code.",'
+    );
+    fs.writeFileSync(file, c, 'utf8');
+    console.log('Patched (fallback2): added before Return ONLY');
+  }
 }
