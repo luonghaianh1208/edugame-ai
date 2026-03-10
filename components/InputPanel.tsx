@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Zap, BookOpen, Target, AlignLeft, ChevronDown, Loader2, Sparkles, Timer, Star, Gift, Flame, PenLine } from "lucide-react";
 
 const PRESET_GAME_TYPES = [
@@ -49,7 +49,20 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
   const [description,   setDescription]  = useState("");
   const [showAdvanced,  setShowAdvanced]  = useState(false);
 
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [headerH, setHeaderH] = useState(45);
+
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setHeaderH(el.offsetHeight));
+    ro.observe(el);
+    setHeaderH(el.offsetHeight);
+    return () => ro.disconnect();
+  }, []);
+
   const isCustom = gameType === "custom";
+
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -88,11 +101,11 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
   );
 
   return (
-    /* ── Outer shell: fixed height, flex column, NO overflow here ── */
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--bg-secondary)", minHeight: 0 }}>
+    /* Outer: fills the parent flex cell completely */
+    <div style={{ position: "relative", width: "100%", height: "100%", background: "var(--bg-secondary)", overflow: "hidden" }}>
 
-      {/* ── Sticky Header ── */}
-      <div className="panel-header" style={{ flexShrink: 0 }}>
+      {/* ── Sticky Header (absolutely positioned at top) ── */}
+      <div ref={headerRef} className="panel-header" style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 1, borderRadius: "12px 12px 0 0" }}>
         <div className="panel-title">
           <span style={{
             width: 28, height: 28, borderRadius: 8,
@@ -106,12 +119,15 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
         <span className="badge badge-blue">AI Powered</span>
       </div>
 
-      {/* ── Scrollable Form Body ── */}
+      {/* ── Scrollable Form (absolutely fills space below header) ── */}
       <form
         onSubmit={handleSubmit}
         style={{
-          flex: 1,
-          minHeight: 0,           /* ← CRITICAL: allows flex child to shrink below content height */
+          position: "absolute",
+          top: headerH,
+          left: 0,
+          right: 0,
+          bottom: 0,
           overflowY: "auto",
           overflowX: "hidden",
           padding: "14px 12px",
