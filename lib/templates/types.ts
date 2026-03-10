@@ -13,6 +13,9 @@ export interface GameSettings {
   useScoring: boolean;
   rewardPenalty: string;
   questionCount: number;
+  playerMode: '1p' | '2p';  // single player or 2-player hotseat
+  player1Name: string;
+  player2Name: string;
 }
 
 // All 8 template IDs
@@ -33,6 +36,7 @@ export interface TemplateInfo {
   desc: string;
   color: string;   // gradient for card
   players: string; // "1-2 người" etc.
+  supportsMultiplayer?: boolean;  // shows 2p mode selector
   supportsImageUpload?: boolean;
 }
 
@@ -52,6 +56,7 @@ export const TEMPLATES: TemplateInfo[] = [
     desc: 'Đấu kiến thức với đối thủ — ai đúng trước kéo dây về phía mình!',
     color: 'linear-gradient(135deg, #dc2626, #f97316)',
     players: '1 vs AI / 2 người',
+    supportsMultiplayer: true,
   },
   {
     id: 'territory',
@@ -60,6 +65,7 @@ export const TEMPLATES: TemplateInfo[] = [
     desc: 'Trả lời đúng để chiếm ô trên bản đồ lưới. Nhiều đất nhất thắng!',
     color: 'linear-gradient(135deg, #059669, #10b981)',
     players: '1 vs AI / 2 người',
+    supportsMultiplayer: true,
   },
   {
     id: 'bomb-defuse',
@@ -76,6 +82,7 @@ export const TEMPLATES: TemplateInfo[] = [
     desc: 'Hai người leo núi song song. Ai đúng trước leo nhanh hơn, lên đỉnh trước thắng!',
     color: 'linear-gradient(135deg, #0369a1, #38bdf8)',
     players: '1 vs AI / 2 người',
+    supportsMultiplayer: true,
   },
   {
     id: 'mosaic-reveal',

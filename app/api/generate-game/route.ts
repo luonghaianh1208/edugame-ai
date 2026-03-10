@@ -8,7 +8,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       topic, templateId, questionCount, difficulty,
-      useTimer, useScoring, rewardPenalty, apiKey
+      useTimer, useScoring, rewardPenalty, apiKey,
+      playerMode, player1Name, player2Name,
     } = body;
 
     if (!apiKey)       return NextResponse.json({ error: "Chưa cấu hình API key." }, { status: 401 });
@@ -67,6 +68,9 @@ export async function POST(request: NextRequest) {
       useScoring: useScoring !== false,
       rewardPenalty: rewardPenalty || "points",
       questionCount: questions.length,
+      playerMode: playerMode || "1p",
+      player1Name: player1Name || "Người chơi 1",
+      player2Name: player2Name || "Người chơi 2",
     };
 
     const html = buildGameHtml(templateId as TemplateId, questions, settings);

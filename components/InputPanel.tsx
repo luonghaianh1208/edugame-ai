@@ -12,6 +12,9 @@ export interface GameParams {
   useTimer: boolean;
   useScoring: boolean;
   rewardPenalty: "none" | "points" | "time" | "both";
+  playerMode: "1p" | "2p";
+  player1Name: string;
+  player2Name: string;
 }
 
 interface InputPanelProps {
@@ -36,12 +39,22 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
   const [useScoring,    setUseScoring]    = useState(true);
   const [rewardPenalty, setRewardPenalty] = useState<"none"|"points"|"time"|"both">("points");
   const [showSettings,  setShowSettings]  = useState(false);
+  const [playerMode,    setPlayerMode]    = useState<"1p"|"2p">("1p");
+  const [player1Name,   setPlayer1Name]   = useState("Người chơi 1");
+  const [player2Name,   setPlayer2Name]   = useState("Người chơi 2");
 
   const selected = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[7];
 
+  // Reset to 1p when switching to template that doesn't support multiplayer
+  function handleTemplateChange(id: TemplateId) {
+    setTemplateId(id);
+    const tmpl = TEMPLATES.find(t => t.id === id);
+    if (!tmpl?.supportsMultiplayer) setPlayerMode("1p");
+  }
+
   function handleGenerate() {
     if (!topic.trim()) return;
-    onGenerate({ topic: topic.trim(), templateId, questionCount, difficulty, useTimer, useScoring, rewardPenalty });
+    onGenerate({ topic: topic.trim(), templateId, questionCount, difficulty, useTimer, useScoring, rewardPenalty, playerMode, player1Name: player1Name.trim() || "Người chơi 1", player2Name: player2Name.trim() || "Người chơi 2" });
   }
 
   const canGenerate = topic.trim().length > 0 && !isGenerating;
@@ -92,7 +105,7 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
             {TEMPLATES.map((t: TemplateInfo) => (
               <button
                 key={t.id}
-                onClick={() => setTemplateId(t.id)}
+                onClick={() => handleTemplateChange(t.id)}
                 style={{
                   padding: "9px 10px", borderRadius: 10,
                   border: `2px solid ${templateId === t.id ? "var(--accent-blue)" : "var(--border)"}`,
@@ -111,6 +124,63 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
             ))}
           </div>
         </div>
+
+        {/* Player mode selector — only for multiplayer templates */}
+        {selected?.supportsMultiplayer && (
+          <div className="form-group" style={{ marginTop: 12 }}>
+            <label className="form-label">👥 CHẾ ĐỘ NGƯỜI CHƠI</label>
+            <div style={{ display: "flex", gap: 8, marginBottom: playerMode === "2p" ? 10 : 0 }}>
+              {(["1p", "2p"] as const).map(mode => (
+                <button
+                  key={mode}
+                  onClick={() => setPlayerMode(mode)}
+                  style={{
+                    flex: 1, padding: "9px 8px", borderRadius: 9, fontSize: 12, fontWeight: playerMode === mode ? 700 : 500,
+                    border: `2px solid ${playerMode === mode ? (mode === "2p" ? "#f97316" : "var(--accent-blue)") : "var(--border)"}`,
+                    background: playerMode === mode ? (mode === "2p" ? "rgba(249,115,22,.12)" : "rgba(99,102,241,.12)") : "var(--bg-tertiary)",
+                    color: playerMode === mode ? (mode === "2p" ? "#f97316" : "var(--accent-blue)") : "var(--text-muted)",
+                    cursor: "pointer", transition: "all .15s",
+                  }}
+                >
+                  {mode === "1p" ? "👤 1 người vs AI" : "👥 2 người (cùng máy)"}
+                </button>
+              ))}
+            </div>
+            {/* Player name inputs for 2p mode */}
+            {playerMode === "2p" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: "var(--accent-blue)", fontWeight: 700, marginBottom: 4 }}>🧑 TÊN NGƯỜI CHƠI 1</div>
+                  <input
+                    type="text"
+                    value={player1Name}
+                    onChange={e => setPlayer1Name(e.target.value)}
+                    maxLength={16}
+                    style={{
+                      width: "100%", padding: "7px 9px", borderRadius: 7,
+                      border: "1px solid var(--accent-blue)", background: "var(--bg-tertiary)",
+                      color: "var(--text-primary)", fontSize: 12, outline: "none", fontFamily: "inherit",
+                    }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "#f97316", fontWeight: 700, marginBottom: 4 }}>👾 TÊN NGƯỜI CHƠI 2</div>
+                  <input
+                    type="text"
+                    value={player2Name}
+                    onChange={e => setPlayer2Name(e.target.value)}
+                    maxLength={16}
+                    style={{
+                      width: "100%", padding: "7px 9px", borderRadius: 7,
+                      border: "1px solid #f97316", background: "var(--bg-tertiary)",
+                      color: "var(--text-primary)", fontSize: 12, outline: "none", fontFamily: "inherit",
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Number of questions */}
         <div className="form-group" style={{ marginTop: 12 }}>

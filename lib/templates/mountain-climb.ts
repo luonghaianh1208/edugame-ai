@@ -53,7 +53,7 @@ body{font-family:'Segoe UI',sans-serif;background:linear-gradient(180deg,#0c1445
 <div id="intro">
   <div class="big-emoji">🏔️</div>
   <div class="title-main">Leo Núi!</div>
-  <div class="desc">Bạn vs AI leo núi song song. Trả lời đúng → bạn leo thêm 1 tầng. Sai → AI leo. Ai lên đỉnh trước (${ PEAK } tầng) thắng!</div>
+  <div class="desc">${settings.playerMode === '2p' ? `Hai người thay nhau leo núi! Trả lời đúng bạn leo 1 tầng. Sai thì mất lượt. Ai lên đỉnh trước (${PEAK} tầng) thắng!` : `Bạn vs AI leo núi song song. Trả lời đúng → bạn leo thêm 1 tầng. Sai → AI leo. Ai lên đỉnh trước (${PEAK} tầng) thắng!`}</div>
   <div style="color:#818cf8;font-weight:700;font-size:14px">Chủ đề: ${settings.topic}</div>
   <button class="btn-start" onclick="startGame()">🏔️ Bắt Đầu Leo!</button>
 </div>
@@ -69,12 +69,12 @@ body{font-family:'Segoe UI',sans-serif;background:linear-gradient(180deg,#0c1445
   <div class="panel">
     <div class="progress-section">
       <div class="progress-wrap p-me">
-        <div class="p-label">🧍 Bạn — <span id="my-step">0</span>/${PEAK}</div>
+        <div class="p-label" id="p1-label">🧍 ${settings.playerMode === '2p' ? settings.player1Name : 'Bạn'} — <span id="my-step">0</span>/${PEAK}</div>
         <div class="p-bar-track"><div class="p-bar p-bar-me" id="my-bar" style="width:0%"></div></div>
       </div>
       <div class="vs-badge">⚡<br>VS</div>
       <div class="progress-wrap p-ai">
-        <div class="p-label" style="text-align:right">🤖 AI — <span id="ai-step">0</span>/${PEAK}</div>
+        <div class="p-label" style="text-align:right" id="p2-label">${settings.playerMode === '2p' ? settings.player2Name : '🤖 AI'} — <span id="ai-step">0</span>/${PEAK}</div>
         <div class="p-bar-track"><div class="p-bar p-bar-ai" id="ai-bar" style="width:0%"></div></div>
       </div>
     </div>
@@ -97,12 +97,23 @@ body{font-family:'Segoe UI',sans-serif;background:linear-gradient(180deg,#0c1445
   </div>
 </div>
 
+<!-- 2p turn overlay -->
+<div id="turn-overlay" style="display:none;position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.85);flex-direction:column;align-items:center;justify-content:center;gap:12px">
+  <div id="turn-emoji" style="font-size:56px"></div>
+  <div id="turn-label" style="font-size:22px;font-weight:800;color:#f1f5f9"></div>
+  <div style="font-size:13px;color:#94a3b8">Lượt của bạn! Chuẩn bị...</div>
+</div>
+
 <script>
 var questions = ${JSON.stringify(questions)};
+var IS_2P = ${settings.playerMode === '2p' ? 'true' : 'false'};
+var P1_NAME = '${settings.player1Name.replace(/'/g, "'")}';
+var P2_NAME = '${settings.player2Name.replace(/'/g, "'")}';
 var PEAK = ${PEAK};
 var mySteps = 0, aiSteps = 0;
 var qIndex = 0;
 var canAnswer = false;
+var currentPlayer = 1; // 2p: 1 = P1, 2 = P2
 
 function updateClimbers() {
   var myPct = mySteps / PEAK;
@@ -124,7 +135,12 @@ function showNextQuestion() {
   if (qIndex >= questions.length) { endGame('draw'); return; }
   var q = questions[qIndex];
   document.getElementById('q-num').textContent = qIndex + 1;
-  document.getElementById('q-text').textContent = q.q;
+  if (IS_2P) {
+    var currName = currentPlayer === 1 ? P1_NAME : P2_NAME;
+    document.getElementById('q-text').textContent = '🎯 Lượt ' + currName + ': ' + q.q;
+  } else {
+    document.getElementById('q-text').textContent = q.q;
+  }
   var answersEl = document.getElementById('answers');
   answersEl.innerHTML = '';
   var labels = ['A','B','C','D'];
@@ -156,32 +172,67 @@ function handleAnswer(idx) {
     ex.style.display = 'block';
     ex.textContent = (correct ? '✅ ' : '❌ ') + q.explain;
   }
-  if (correct) {
-    mySteps = Math.min(PEAK, mySteps + 1);
+  if (IS_2P) {
+    // In 2p: correct = current player climbs; wrong = no climb, switch turn
+    if (correct) {
+      if (currentPlayer === 1) mySteps = Math.min(PEAK, mySteps + 1);
+      else aiSteps = Math.min(PEAK, aiSteps + 1);
+    }
+    updateClimbers();
+    if (mySteps >= PEAK) { setTimeout(function(){ endGame('p1win'); }, 700); return; }
+    if (aiSteps >= PEAK) { setTimeout(function(){ endGame('p2win'); }, 700); return; }
+    // Switch player
+    currentPlayer = currentPlayer === 1 ? 2 : 1;
+    var nextName = currentPlayer === 1 ? P1_NAME : P2_NAME;
+    var nextEmoji = currentPlayer === 1 ? '🧑' : '👾';
+    if (qIndex >= questions.length) { setTimeout(function(){ endGame('draw'); }, 700); return; }
+    setTimeout(function() {
+      var ov = document.getElementById('turn-overlay');
+      document.getElementById('turn-emoji').textContent = nextEmoji;
+      document.getElementById('turn-label').textContent = 'Lượt của ' + nextName;
+      ov.style.display = 'flex';
+      setTimeout(function() { ov.style.display = 'none'; showNextQuestion(); }, 1400);
+    }, 1200);
   } else {
-    aiSteps = Math.min(PEAK, aiSteps + 1);
+    // 1p vs AI
+    if (correct) mySteps = Math.min(PEAK, mySteps + 1);
+    else aiSteps = Math.min(PEAK, aiSteps + 1);
+    updateClimbers();
+    if (mySteps >= PEAK) { setTimeout(function(){ endGame('win'); }, 700); return; }
+    if (aiSteps >= PEAK) { setTimeout(function(){ endGame('lose'); }, 700); return; }
+    setTimeout(showNextQuestion, 1400);
   }
-  updateClimbers();
-  if (mySteps >= PEAK) { setTimeout(function(){ endGame('win'); }, 700); return; }
-  if (aiSteps >= PEAK) { setTimeout(function(){ endGame('lose'); }, 700); return; }
-  setTimeout(showNextQuestion, 1400);
 }
 
 function endGame(outcome) {
   document.getElementById('result').style.display = 'flex';
   document.getElementById('game').style.display = 'none';
-  document.getElementById('res-emoji').textContent = outcome === 'win' ? '🏆' : outcome === 'lose' ? '😢' : '⏳';
-  document.getElementById('res-title').textContent = outcome === 'win' ? 'Lên Đỉnh Núi!' : outcome === 'lose' ? 'AI Leo Nhanh Hơn!' : 'Hết Câu Hỏi!';
-  document.getElementById('res-desc').textContent = 'Bạn: ' + mySteps + '/' + PEAK + ' tầng | AI: ' + aiSteps + '/' + PEAK + ' tầng';
+  var p1 = IS_2P ? P1_NAME : 'Bạn';
+  var p2 = IS_2P ? P2_NAME : 'AI';
+  var titles = {
+    win: '🏆 Lên Đỉnh Núi!', lose: '😢 ' + p2 + ' Leo Nhanh Hơn!', draw: '⏳ Hết Câu Hỏi!',
+    p1win: '🏆 ' + p1 + ' Lên Đỉnh Núi!', p2win: '🎉 ' + p2 + ' Lên Đỉnh Núi!',
+  };
+  document.getElementById('res-emoji').textContent = (outcome === 'win' || outcome === 'p1win') ? '🏆' : outcome === 'draw' ? '⏳' : '😢';
+  document.getElementById('res-title').textContent = titles[outcome] || 'Kết Thúc!';
+  document.getElementById('res-desc').textContent = p1 + ': ' + mySteps + '/' + PEAK + ' tầng | ' + p2 + ': ' + aiSteps + '/' + PEAK + ' tầng';
 }
 
 function startGame() {
-  mySteps = 0; aiSteps = 0; qIndex = 0;
+  mySteps = 0; aiSteps = 0; qIndex = 0; currentPlayer = 1;
   document.getElementById('intro').style.display = 'none';
   document.getElementById('result').style.display = 'none';
   document.getElementById('game').style.display = 'flex';
   updateClimbers();
-  showNextQuestion();
+  if (IS_2P) {
+    var ov = document.getElementById('turn-overlay');
+    document.getElementById('turn-emoji').textContent = '🧑';
+    document.getElementById('turn-label').textContent = 'Lượt đầu tiên: ' + P1_NAME;
+    ov.style.display = 'flex';
+    setTimeout(function() { ov.style.display = 'none'; showNextQuestion(); }, 1500);
+  } else {
+    showNextQuestion();
+  }
 }
 
 function restartGame() {

@@ -52,7 +52,7 @@ body{font-family:'Segoe UI',sans-serif;background:#0f1b0f;color:#e2e8f0;min-heig
 <div id="intro">
   <div class="big-emoji">🏰</div>
   <div class="title-main">Chiếm Đất!</div>
-  <div class="desc">Trả lời đúng → chọn 1 ô trống trên lưới để chiếm. AI cũng chiếm ô ngẫu nhiên mỗi lượt sai. Ai chiếm nhiều ô hơn sau ${questions.length} câu thắng!</div>
+  <div class="desc">${settings.playerMode === '2p' ? 'Hai người thay nhau chơi! Ai trả lời đúng tự chọn (ô để chiếm lãnh thổ. Chiếm được nhiều ô nhất thắng!' : 'Trả lời đúng → chọn 1 ô trống trên lưới để chiếm. AI cũng chiếm ô ngẫu nhiên mỗi lượt sai. Ai chiếm nhiều ô hơn sau ${questions.length} câu thắng!'}</div>
   <div style="color:#4ade80;font-weight:700;font-size:14px">Chủ đề: ${settings.topic}</div>
   <button class="btn-start" onclick="startGame()">🏰 Xâm Lược Ngay!</button>
 </div>
@@ -67,15 +67,23 @@ body{font-family:'Segoe UI',sans-serif;background:#0f1b0f;color:#e2e8f0;min-heig
 <div id="game" style="display:none">
   <div class="panel">
     <div class="scoreboard">
-      <div class="team t-me"><div class="team-name">🧍 Bạn</div><div class="team-score" id="my-score">0</div></div>
+      <div class="team t-me"><div class="team-name" id="left-name">${settings.playerMode === '2p' ? settings.player1Name : '🧙 Bạn'}</div><div class="team-score" id="my-score">0</div></div>
       <div class="vs">⚔️<br><span style="font-size:11px;color:#64748b">CHIẾM ĐẤT</span></div>
-      <div class="team t-ai"><div class="team-name">🤖 AI</div><div class="team-score" id="ai-score">0</div></div>
+      <div class="team t-ai"><div class="team-name" id="right-name">${settings.playerMode === '2p' ? settings.player2Name : '🤖 AI'}</div><div class="team-score" id="ai-score">0</div></div>
     </div>
   </div>
   <div class="panel" style="padding:10px">
     <div id="grid"></div>
   </div>
-  <div id="select-prompt">✅ Đúng rồi! Hãy chọn 1 ô trống để chiếm 🏰</div>
+  <div id="select-prompt" style="font-size:13px;font-weight:700;text-align:center;padding:10px;display:none">✅ Đúng rồi! Hãy chọn 1 ô trống để chiếm 🏰</div>
+</div>
+
+<!-- 2p turn overlay -->
+<div id="turn-overlay" style="display:none;position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.85);flex-direction:column;align-items:center;justify-content:center;gap:12px">
+  <div id="turn-emoji" style="font-size:56px"></div>
+  <div id="turn-label" style="font-size:22px;font-weight:800;color:#f1f5f9"></div>
+  <div style="font-size:13px;color:#94a3b8">Lượt của bạn! Chuẩn bị...</div>
+</div>
   <div class="panel" id="q-panel">
     <div class="q-label">❓ CÂU <span id="q-num">1</span>/${questions.length}</div>
     <div class="q-text" id="q-text"></div>
@@ -86,12 +94,16 @@ body{font-family:'Segoe UI',sans-serif;background:#0f1b0f;color:#e2e8f0;min-heig
 
 <script>
 var questions = ${JSON.stringify(questions)};
+var IS_2P = ${settings.playerMode === '2p' ? 'true' : 'false'};
+var P1_NAME = '${settings.player1Name.replace(/'/g, "'")}';
+var P2_NAME = '${settings.player2Name.replace(/'/g, "'")}';
 var GRID_SIZE = ${GRID} * ${GRID};
-var grid = new Array(GRID_SIZE).fill(0); // 0=empty,1=mine,2=ai
+var grid = new Array(GRID_SIZE).fill(0); // 0=empty,1=p1,2=p2/ai
 var qIndex = 0;
 var myScore = 0, aiScore = 0;
 var canAnswer = false;
 var selectMode = false;
+var currentPlayer = 1; // in 2p: 1=P1's turn, 2=P2's turn
 
 function renderGrid() {
   var el = document.getElementById('grid');
@@ -109,17 +121,37 @@ function renderGrid() {
   }
   document.getElementById('my-score').textContent = myScore;
   document.getElementById('ai-score').textContent = aiScore;
+  // Update cell labels in 2p
+  if (IS_2P) {
+    var cells = document.querySelectorAll('.grid-cell');
+    cells.forEach(function(c) {
+      if (grid[parseInt(c.dataset.idx)] === 1) c.innerHTML = '🏰<br>' + P1_NAME.substring(0,4);
+      else if (grid[parseInt(c.dataset.idx)] === 2) c.innerHTML = '🏯<br>' + P2_NAME.substring(0,4);
+    });
+  }
 }
 
 function claimCell(idx) {
   if (!selectMode || grid[idx] !== 0) return;
-  grid[idx] = 1;
-  myScore++;
+  if (!IS_2P || currentPlayer === 1) { grid[idx] = 1; myScore++; }
+  else { grid[idx] = 2; aiScore++; }
   selectMode = false;
   document.getElementById('select-prompt').style.display = 'none';
   document.getElementById('q-panel').style.display = 'block';
   renderGrid();
-  setTimeout(showNextQuestion, 400);
+  // In 2p, switch player after cell pick too
+  if (IS_2P && qIndex < questions.length) {
+    currentPlayer = currentPlayer === 1 ? 2 : 1;
+    var nextName = currentPlayer === 1 ? P1_NAME : P2_NAME;
+    var nextEmoji = currentPlayer === 1 ? '🧑' : '👾';
+    var ov = document.getElementById('turn-overlay');
+    document.getElementById('turn-emoji').textContent = nextEmoji;
+    document.getElementById('turn-label').textContent = 'Lượt của ' + nextName;
+    ov.style.display = 'flex';
+    setTimeout(function() { ov.style.display = 'none'; showNextQuestion(); }, 1400);
+  } else {
+    setTimeout(showNextQuestion, 400);
+  }
 }
 
 function aiClaim() {
@@ -136,7 +168,12 @@ function showNextQuestion() {
   if (qIndex >= questions.length) { endGame(); return; }
   var q = questions[qIndex];
   document.getElementById('q-num').textContent = qIndex + 1;
-  document.getElementById('q-text').textContent = q.q;
+  if (IS_2P) {
+    var currName = currentPlayer === 1 ? P1_NAME : P2_NAME;
+    document.getElementById('q-text').textContent = '🎯 ' + currName + ': ' + q.q;
+  } else {
+    document.getElementById('q-text').textContent = q.q;
+  }
   var answersEl = document.getElementById('answers');
   answersEl.innerHTML = '';
   var labels = ['A','B','C','D'];
@@ -172,18 +209,39 @@ function handleAnswer(idx) {
     var hasEmpty = grid.some(function(v) { return v === 0; });
     if (hasEmpty) {
       selectMode = true;
+      document.getElementById('select-prompt').textContent = IS_2P
+        ? (currentPlayer === 1 ? '✅ ' + P1_NAME + ' đẳng đ! Chọn ô để chiếm 🏀'
+                               : '✅ ' + P2_NAME + ' đẳng đ! Chọn ô để chiếm 🏁')
+        : '✅ Đúng rồi! Hãy chọn 1 ô trống để chiếm 🏀';
       document.getElementById('select-prompt').style.display = 'block';
       document.getElementById('q-panel').style.display = 'none';
       renderGrid();
       return;
     } else {
-      myScore++;
+      if (!IS_2P || currentPlayer === 1) myScore++;
+      else aiScore++;
     }
   } else {
-    aiClaim();
+    if (!IS_2P) aiClaim();
+    // In 2p: no penalty for wrong answer
   }
   renderGrid();
-  setTimeout(showNextQuestion, 1300);
+  if (IS_2P) {
+    // Switch player and show overlay
+    currentPlayer = currentPlayer === 1 ? 2 : 1;
+    var nextName = currentPlayer === 1 ? P1_NAME : P2_NAME;
+    var nextEmoji = currentPlayer === 1 ? '🧑' : '👾';
+    if (qIndex >= questions.length) { setTimeout(endGame, 800); return; }
+    setTimeout(function() {
+      var ov = document.getElementById('turn-overlay');
+      document.getElementById('turn-emoji').textContent = nextEmoji;
+      document.getElementById('turn-label').textContent = 'Lượt của ' + nextName;
+      ov.style.display = 'flex';
+      setTimeout(function() { ov.style.display = 'none'; showNextQuestion(); }, 1400);
+    }, 1200);
+  } else {
+    setTimeout(showNextQuestion, 1300);
+  }
 }
 
 function endGame() {
@@ -191,21 +249,31 @@ function endGame() {
   resultEl.style.display = 'flex';
   document.getElementById('game').style.display = 'none';
   var outcome = myScore > aiScore ? 'win' : myScore < aiScore ? 'lose' : 'draw';
+  var p1 = IS_2P ? P1_NAME : 'Bạn';
+  var p2 = IS_2P ? P2_NAME : 'AI';
   document.getElementById('res-emoji').textContent = outcome === 'win' ? '🏆' : outcome === 'lose' ? '😢' : '🤝';
-  document.getElementById('res-title').textContent = outcome === 'win' ? 'Bá Chủ Lãnh Thổ!' : outcome === 'lose' ? 'AI Chiếm Nhiều Hơn!' : 'Hoà!';
-  document.getElementById('res-desc').textContent = 'Bạn: ' + myScore + ' ô | AI: ' + aiScore + ' ô | Tổng: ' + GRID_SIZE + ' ô';
+  document.getElementById('res-title').textContent = outcome === 'win' ? p1 + ' Bá Chủ Lãnh Thổ!' : outcome === 'lose' ? p2 + ' Chiếm Nhiều Hơn!' : 'Hoà!';
+  document.getElementById('res-desc').textContent = p1 + ': ' + myScore + ' ô | ' + p2 + ': ' + aiScore + ' ô | Tổng: ' + GRID_SIZE + ' ô';
 }
 
 function startGame() {
   grid = new Array(GRID_SIZE).fill(0);
-  qIndex = 0; myScore = 0; aiScore = 0; selectMode = false;
+  qIndex = 0; myScore = 0; aiScore = 0; selectMode = false; currentPlayer = 1;
   document.getElementById('intro').style.display = 'none';
   document.getElementById('result').style.display = 'none';
   document.getElementById('game').style.display = 'flex';
   document.getElementById('q-panel').style.display = 'block';
   document.getElementById('select-prompt').style.display = 'none';
   renderGrid();
-  showNextQuestion();
+  if (IS_2P) {
+    var ov = document.getElementById('turn-overlay');
+    document.getElementById('turn-emoji').textContent = '🧑';
+    document.getElementById('turn-label').textContent = 'Lượt đầu tiên: ' + P1_NAME;
+    ov.style.display = 'flex';
+    setTimeout(function() { ov.style.display = 'none'; showNextQuestion(); }, 1500);
+  } else {
+    showNextQuestion();
+  }
 }
 
 function restartGame() {

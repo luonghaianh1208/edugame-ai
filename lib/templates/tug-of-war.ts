@@ -54,9 +54,9 @@ h1{text-align:center;font-size:20px;font-weight:800;background:linear-gradient(1
 </head>
 <body>
 <div id="intro">
-  <div class="big-emoji">🪢</div>
+  <div class="big-emoji">🦱</div>
   <div class="title-main">Kéo Co Tri Thức</div>
-  <div class="desc">Trả lời đúng câu hỏi để kéo dây về phía bạn! Kéo qua vạch thắng 5 bước thắng. Sai thì đối thủ kéo lại!</div>
+  <div class="desc">${settings.playerMode === '2p' ? 'Hai người lần lượt trả lời câu hỏi! Ai trả lời đúng nhiều hơn sẽ kéo dây về phía mình. Kéo đến điểm thắng thì thắng!' : 'Trả lời đúng câu hỏi để kéo dây về phía bạn! Kéo qua vạch thắng 5 bước thắng. Sai thì đối thủ kéo lại!'}</div>
   <div style="color:#f97316;font-weight:700;font-size:14px">Chủ đề: ${settings.topic}</div>
   <button class="btn-start" onclick="startGame()">💪 Bắt Đầu Kéo!</button>
 </div>
@@ -72,12 +72,12 @@ h1{text-align:center;font-size:20px;font-weight:800;background:linear-gradient(1
   <div class="panel">
     <div class="scoreboard">
       <div class="team team-left">
-        <div class="team-name">👤 Bạn</div>
+        <div class="team-name" id="left-name">${settings.playerMode === '2p' ? settings.player1Name : '👤 Bạn'}</div>
         <div class="team-score" id="p-score">0</div>
       </div>
       <div class="vs">VS</div>
       <div class="team team-right">
-        <div class="team-name">🤖 AI</div>
+        <div class="team-name" id="right-name">${settings.playerMode === '2p' ? settings.player2Name : '🤖 AI'}</div>
         <div class="team-score" id="e-score">0</div>
       </div>
     </div>
@@ -103,16 +103,29 @@ h1{text-align:center;font-size:20px;font-weight:800;background:linear-gradient(1
   </div>
 </div>
 
+<!-- 2p turn overlay -->
+<div id="turn-overlay" style="display:none;position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.85);flex-direction:column;align-items:center;justify-content:center;gap:12px">
+  <div id="turn-emoji" style="font-size:56px"></div>
+  <div id="turn-label" style="font-size:22px;font-weight:800;color:#f1f5f9"></div>
+  <div style="font-size:13px;color:#94a3b8">Lướt của bạn! Chuẩn bị...</div>
+</div>
+
 <script>
 var questions = ${JSON.stringify(questions)};
+var IS_2P = ${settings.playerMode === '2p' ? 'true' : 'false'};
+var P1_NAME = '${settings.player1Name.replace(/'/g, "'")}';
+var P2_NAME = '${settings.player2Name.replace(/'/g, "'")}';
 var STEPS_TO_WIN = 5;
-var ropePos = 0; // -5 to +5, negative=player wins, positive=enemy wins
+var ropePos = 0;
 var pScore = 0, eScore = 0;
 var qIndex = 0;
 var canAnswer = false;
 var timerId = null;
 var timeLeft = 15;
 var streakCount = 0;
+// 2p: track who answered this round
+var p1Correct = false; // did P1 answer correctly this round?
+var waitingForP2 = false; // in 2p, are we waiting for P2's answer?
 
 function updateRope() {
   var pct = ((ropePos + STEPS_TO_WIN) / (STEPS_TO_WIN * 2)) * 100;
@@ -152,7 +165,13 @@ function showNextQuestion() {
   if (qIndex >= questions.length) { endGame('draw'); return; }
   var q = questions[qIndex];
   document.getElementById('q-count').textContent = 'Câu ' + (qIndex + 1) + '/' + questions.length;
-  document.getElementById('q-text').textContent = '❓ ' + q.q;
+  // Show whose turn it is (2p)
+  if (IS_2P) {
+    var currName = waitingForP2 ? P2_NAME : P1_NAME;
+    document.getElementById('q-text').textContent = '🎯 Lượt ' + currName + ': ' + q.q;
+  } else {
+    document.getElementById('q-text').textContent = '❓ ' + q.q;
+  }
   var answersEl = document.getElementById('answers');
   answersEl.innerHTML = '';
   var labels = ['A','B','C','D'];
@@ -166,7 +185,7 @@ function showNextQuestion() {
   document.getElementById('explain').style.display = 'none';
   document.getElementById('timer-bar').style.background = 'linear-gradient(90deg,#10b981,#3b82f6)';
   canAnswer = true;
-  qIndex++;
+  if (!waitingForP2) qIndex++; // only advance on P1's turn (or 1p)
   startTimer();
 }
 
@@ -187,43 +206,104 @@ function handleAnswer(idx) {
     ex.style.display = 'block';
     ex.textContent = (correct ? '✅ ' : '❌ ') + q.explain;
   }
-  if (correct) {
-    streakCount++;
-    ropePos = Math.max(-STEPS_TO_WIN, ropePos - 1);
-    pScore += (10 + (streakCount >= 3 ? 5 : 0));
-    var badge = document.getElementById('streak-badge');
-    if (streakCount >= 3) badge.innerHTML = '<span class="badge" style="background:rgba(251,191,36,.2);color:#fbbf24">🔥 Combo x' + streakCount + '</span>';
-    else badge.innerHTML = '';
+  if (IS_2P) {
+    // 2p: P1 answers, then show P2's turn overlay, then P2 answers, then update rope
+    if (!waitingForP2) {
+      // P1 just answered
+      p1Correct = correct;
+      if (correct) pScore += 10;
+      document.getElementById('p-score').textContent = pScore;
+      // Show P2 turn overlay
+      setTimeout(function() {
+        var ov = document.getElementById('turn-overlay');
+        document.getElementById('turn-emoji').textContent = '👾';
+        document.getElementById('turn-label').textContent = 'Lượt của ' + P2_NAME;
+        ov.style.display = 'flex';
+        setTimeout(function() {
+          ov.style.display = 'none';
+          waitingForP2 = true;
+          showNextQuestion();
+        }, 1500);
+      }, 1200);
+    } else {
+      // P2 just answered
+      waitingForP2 = false;
+      if (correct) eScore += 10;
+      document.getElementById('e-score').textContent = eScore;
+      // Update rope: both answered, compare
+      if (p1Correct && !correct) ropePos = Math.max(-STEPS_TO_WIN, ropePos - 1);
+      else if (!p1Correct && correct) ropePos = Math.min(STEPS_TO_WIN, ropePos + 1);
+      // if both or neither correct: rope stays
+      updateRope();
+      if (ropePos <= -STEPS_TO_WIN) { setTimeout(function(){ endGame('p1win'); }, 600); return; }
+      if (ropePos >= STEPS_TO_WIN)  { setTimeout(function(){ endGame('p2win'); }, 600); return; }
+      if (qIndex >= questions.length) { setTimeout(function(){ endGame('draw'); }, 600); return; }
+      // Show P1 turn overlay for next round
+      setTimeout(function() {
+        var ov = document.getElementById('turn-overlay');
+        document.getElementById('turn-emoji').textContent = '🧑';
+        document.getElementById('turn-label').textContent = 'Lượt của ' + P1_NAME;
+        ov.style.display = 'flex';
+        setTimeout(function() { ov.style.display = 'none'; showNextQuestion(); }, 1500);
+      }, 1300);
+    }
   } else {
-    streakCount = 0;
-    ropePos = Math.min(STEPS_TO_WIN, ropePos + 1);
-    eScore += 10;
-    document.getElementById('streak-badge').innerHTML = '';
+    // 1p vs AI
+    if (correct) {
+      streakCount++;
+      ropePos = Math.max(-STEPS_TO_WIN, ropePos - 1);
+      pScore += (10 + (streakCount >= 3 ? 5 : 0));
+      var badge = document.getElementById('streak-badge');
+      if (streakCount >= 3) badge.innerHTML = '<span class="badge" style="background:rgba(251,191,36,.2);color:#fbbf24">🔥 Combo x' + streakCount + '</span>';
+      else badge.innerHTML = '';
+    } else {
+      streakCount = 0;
+      ropePos = Math.min(STEPS_TO_WIN, ropePos + 1);
+      eScore += 10;
+      document.getElementById('streak-badge').innerHTML = '';
+    }
+    updateRope();
+    if (ropePos <= -STEPS_TO_WIN) { setTimeout(function(){endGame('win')}, 600); return; }
+    if (ropePos >= STEPS_TO_WIN) { setTimeout(function(){endGame('lose')}, 600); return; }
+    setTimeout(showNextQuestion, 1400);
   }
-  updateRope();
-  if (ropePos <= -STEPS_TO_WIN) { setTimeout(function(){endGame('win')}, 600); return; }
-  if (ropePos >= STEPS_TO_WIN) { setTimeout(function(){endGame('lose')}, 600); return; }
-  setTimeout(showNextQuestion, 1400);
 }
 
 function endGame(outcome) {
   if (timerId) clearInterval(timerId);
   document.getElementById('result').style.display = 'flex';
   document.getElementById('game').style.display = 'none';
-  var titles = { win: '🏆 Bạn Đã Thắng!', lose: '😢 AI Thắng Rồi!', draw: '🤝 Hoà!' };
-  var desc = { win: 'Xuất sắc! Bạn đã kéo cưa đứt dây!', lose: 'Cố gắng hơn nhé! AI quá mạnh lần này.', draw: 'Kết quả hoà sau ' + questions.length + ' câu hỏi.' };
-  document.getElementById('res-emoji').textContent = outcome === 'win' ? '🏆' : outcome === 'lose' ? '😢' : '🤝';
+  var p1 = IS_2P ? P1_NAME : 'Bạn';
+  var p2 = IS_2P ? P2_NAME : 'AI';
+  var titles = {
+    win: '🏆 ' + p1 + ' Đã Thắng!',
+    lose: '😢 ' + p2 + ' Thắng Rồi!',
+    p1win: '🏆 ' + p1 + ' Kéo Đứt Dây!',
+    p2win: '🎉 ' + p2 + ' Kéo Đứt Dây!',
+    draw: '🤝 Hoà!',
+  };
+  document.getElementById('res-emoji').textContent = (outcome === 'win' || outcome === 'p1win') ? '🏆' : outcome === 'draw' ? '🤝' : '😢';
   document.getElementById('res-title').textContent = titles[outcome] || 'Kết Thúc!';
-  document.getElementById('res-desc').textContent = (desc[outcome] || '') + ' Điểm: ' + pScore + ' vs ' + eScore;
+  document.getElementById('res-desc').textContent = p1 + ': ' + pScore + ' điểm | ' + p2 + ': ' + eScore + ' điểm';
 }
 
 function startGame() {
   ropePos = 0; pScore = 0; eScore = 0; qIndex = 0; streakCount = 0;
+  p1Correct = false; waitingForP2 = false;
   document.getElementById('intro').style.display = 'none';
   document.getElementById('result').style.display = 'none';
   document.getElementById('game').style.display = 'flex';
   updateRope();
-  showNextQuestion();
+  if (IS_2P) {
+    // Show P1 turn overlay first
+    var ov = document.getElementById('turn-overlay');
+    document.getElementById('turn-emoji').textContent = '🧑';
+    document.getElementById('turn-label').textContent = 'Lượt đầu tiên: ' + P1_NAME;
+    ov.style.display = 'flex';
+    setTimeout(function() { ov.style.display = 'none'; showNextQuestion(); }, 1500);
+  } else {
+    showNextQuestion();
+  }
 }
 
 function restartGame() {
