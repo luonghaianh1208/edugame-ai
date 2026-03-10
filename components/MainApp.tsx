@@ -278,7 +278,7 @@ export default function MainApp() {
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "300px 1fr 1fr 280px", gridTemplateRows: "100%", overflow: "hidden", gap: 1, background: "var(--border)" }}>
         
         {/* Panel 1: Input */}
-        <div style={{ background: "var(--bg-secondary)", overflow: "hidden" }}>
+        <div style={{ background: "var(--bg-secondary)", overflow: "hidden", height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
           <InputPanel onGenerate={handleGenerate} isGenerating={isGenerating} />
         </div>
 
