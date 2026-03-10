@@ -264,7 +264,7 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
         </div>
 
         {/* ── Game Mechanics Section ── */}
-        <div style={{ background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border)", overflow: "hidden" }}>
+        <div style={{ background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border)" }}>
           <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border)", background: "rgba(56,139,253,0.05)" }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-blue)", letterSpacing: "0.05em" }}>
               ⚙️ CƠ CHẾ TRÒ CHƠI
