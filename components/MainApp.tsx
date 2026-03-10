@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Settings, GraduationCap, Gamepad2, Github, Sparkles } from "lucide-react";
 import InputPanel, { GameParams } from "./InputPanel";
 import CodePanel from "./CodePanel";
@@ -22,6 +22,59 @@ export default function MainApp() {
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [activeTab, setActiveTab] = useState<"code" | "preview">("preview");
+
+  // ── Resizable panel widths ───────────────────────────────────────
+  const [leftW,  setLeftW]  = useState(290);   // InputPanel width px
+  const [rightW, setRightW] = useState(265);   // ChatPanel width px
+  const [midSplit, setMidSplit] = useState(0.5); // 0..1 ratio for panels 2 & 3
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{
+    handle: "L" | "M" | "R"; // Left, Mid, Right divider
+    startX: number;
+    startVal: number;        // initial leftW / midSplit / rightW
+    containerW: number;
+  } | null>(null);
+
+  const startDrag = useCallback((e: React.MouseEvent, handle: "L" | "M" | "R") => {
+    e.preventDefault();
+    const totalW = containerRef.current?.offsetWidth ?? window.innerWidth;
+    dragRef.current = {
+      handle,
+      startX: e.clientX,
+      startVal: handle === "L" ? leftW : handle === "R" ? rightW : midSplit,
+      containerW: totalW,
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function onMove(ev: MouseEvent) {
+      if (!dragRef.current) return;
+      const { handle, startX, startVal, containerW } = dragRef.current;
+      const dx = ev.clientX - startX;
+      const MIN = 160;
+
+      if (handle === "L") {
+        setLeftW(Math.max(MIN, Math.min(startVal + dx, containerW * 0.4)));
+      } else if (handle === "R") {
+        setRightW(Math.max(MIN, Math.min(startVal - dx, containerW * 0.4)));
+      } else {
+        // midSplit: fraction (0..1) of middle area for panel-2
+        // midWidth = containerW - leftW - rightW - 6 (3 dividers × 2px)
+        const midW = containerW - leftW - rightW - 6;
+        const newSplit = Math.max(0.15, Math.min(0.85, startVal + dx / midW));
+        setMidSplit(newSplit);
+      }
+    }
+    function onUp() {
+      dragRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [leftW, rightW, midSplit]);
 
   // Load API key from localStorage
   useEffect(() => {
@@ -274,16 +327,38 @@ export default function MainApp() {
         </div>
       </nav>
 
-      {/* Main layout: 4 panels */}
-      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "300px 1fr 1fr 280px", gridTemplateRows: "100%", overflow: "hidden", gap: 1, background: "var(--border)" }}>
-        
-        {/* Panel 1: Input */}
-        <div style={{ background: "var(--bg-secondary)", overflow: "hidden", height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+      {/* Main layout: 4 panels with drag-to-resize dividers */}
+      <div
+        ref={containerRef}
+        style={{
+          flex: 1, display: "flex", flexDirection: "row",
+          overflow: "hidden", background: "var(--border)", gap: 0,
+        }}
+      >
+        {/* ── Panel 1: Input ── */}
+        <div style={{ width: leftW, flexShrink: 0, background: "var(--bg-secondary)", overflow: "hidden", display: "flex", flexDirection: "column", minWidth: 0 }}>
           <InputPanel onGenerate={handleGenerate} isGenerating={isGenerating} />
         </div>
 
-        {/* Panel 2: Code or Preview (tabbed) */}
-        <div style={{ background: "var(--bg-secondary)", overflow: "hidden", position: "relative" }}>
+        {/* ── Divider L ── */}
+        <div
+          onMouseDown={e => startDrag(e, "L")}
+          style={{
+            width: 4, flexShrink: 0, background: "var(--border)",
+            cursor: "col-resize", transition: "background 0.15s",
+            position: "relative",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = "var(--accent-blue)")}
+          onMouseLeave={e => (e.currentTarget.style.background = "var(--border)")}
+        >
+          {/* Visual grip dots */}
+          <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", display: "flex", flexDirection: "column", gap: 3 }}>
+            {[0,1,2].map(i => <div key={i} style={{ width: 2, height: 2, borderRadius: "50%", background: "var(--text-muted)", opacity: 0.6 }} />)}
+          </div>
+        </div>
+
+        {/* ── Panel 2: Code or Preview (tabbed) ── */}
+        <div style={{ flex: midSplit, minWidth: 0, background: "var(--bg-secondary)", overflow: "hidden", position: "relative" }}>
           <div style={{ position: "absolute", inset: 0, opacity: activeTab === "code" ? 1 : 0, pointerEvents: activeTab === "code" ? "auto" : "none", zIndex: activeTab === "code" ? 1 : 0 }}>
             <CodePanel code={code} onChange={setCode} isStreaming={isGenerating} />
           </div>
@@ -292,8 +367,24 @@ export default function MainApp() {
           </div>
         </div>
 
-        {/* Panel 3: The other panel (preview or code – always visible on wider screens) */}
-        <div style={{ background: "var(--bg-secondary)", overflow: "hidden" }}>
+        {/* ── Divider M (between panels 2 & 3) ── */}
+        <div
+          onMouseDown={e => startDrag(e, "M")}
+          style={{
+            width: 4, flexShrink: 0, background: "var(--border)",
+            cursor: "col-resize", transition: "background 0.15s",
+            position: "relative",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = "var(--accent-blue)")}
+          onMouseLeave={e => (e.currentTarget.style.background = "var(--border)")}
+        >
+          <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", display: "flex", flexDirection: "column", gap: 3 }}>
+            {[0,1,2].map(i => <div key={i} style={{ width: 2, height: 2, borderRadius: "50%", background: "var(--text-muted)", opacity: 0.6 }} />)}
+          </div>
+        </div>
+
+        {/* ── Panel 3: Preview or Code (the other one) ── */}
+        <div style={{ flex: 1 - midSplit, minWidth: 0, background: "var(--bg-secondary)", overflow: "hidden" }}>
           {activeTab === "preview" ? (
             <CodePanel code={code} onChange={setCode} isStreaming={isGenerating} />
           ) : (
@@ -301,8 +392,24 @@ export default function MainApp() {
           )}
         </div>
 
-        {/* Panel 4: AI Chat */}
-        <div style={{ background: "var(--bg-secondary)", overflow: "hidden" }}>
+        {/* ── Divider R ── */}
+        <div
+          onMouseDown={e => startDrag(e, "R")}
+          style={{
+            width: 4, flexShrink: 0, background: "var(--border)",
+            cursor: "col-resize", transition: "background 0.15s",
+            position: "relative",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = "var(--accent-blue)")}
+          onMouseLeave={e => (e.currentTarget.style.background = "var(--border)")}
+        >
+          <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", display: "flex", flexDirection: "column", gap: 3 }}>
+            {[0,1,2].map(i => <div key={i} style={{ width: 2, height: 2, borderRadius: "50%", background: "var(--text-muted)", opacity: 0.6 }} />)}
+          </div>
+        </div>
+
+        {/* ── Panel 4: AI Chat ── */}
+        <div style={{ width: rightW, flexShrink: 0, background: "var(--bg-secondary)", overflow: "hidden", display: "flex", flexDirection: "column", minWidth: 0 }}>
           <ChatPanel
             messages={chatMessages}
             onSend={handleChatSend}
