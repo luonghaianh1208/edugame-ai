@@ -187,18 +187,21 @@ export default function MainApp() {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
-            width: 32, height: 32, borderRadius: 9,
-            background: "linear-gradient(135deg, #1f6feb, #a371f7)",
-            display: "flex", alignItems: "center", justifyContent: "center",
+            width: 32, height: 32, borderRadius: 9, overflow: "hidden",
+            flexShrink: 0, border: "1px solid rgba(255,255,255,.1)",
           }}>
-            <GraduationCap size={18} color="white" />
+            <img
+              src="https://www.luonghaianhchemcnt.edu.vn/wp-content/uploads/2025/09/cropped-ChatGPT-Image-00_12_51-30-thg-7-2025.png"
+              alt="logo"
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
           </div>
           <div>
             <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>EduGame</span>
             <span style={{ fontSize: 15, fontWeight: 400, color: "var(--accent-blue)" }}> AI</span>
           </div>
           <span className="badge badge-blue" style={{ marginLeft: 4, fontSize: 10 }}>
-            <Sparkles size={9} /> gemini-3-flash-preview
+            <Sparkles size={9} /> 2Anh AI Education
           </span>
         </div>
 

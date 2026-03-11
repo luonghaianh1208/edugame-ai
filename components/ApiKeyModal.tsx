@@ -65,7 +65,7 @@ export default function ApiKeyModal({ isOpen, onClose, onSave, currentKey }: Api
     >
       <div
         className="glass-card fade-in"
-        style={{ width: 480, padding: 28, position: "relative" }}
+        style={{ width: 520, padding: 28, position: "relative", maxHeight: "90vh", overflowY: "auto" }}
       >
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
@@ -131,6 +131,36 @@ export default function ApiKeyModal({ isOpen, onClose, onSave, currentKey }: Api
           <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
             API key được lưu trong localStorage của trình duyệt. Không chia sẻ với ai.
           </p>
+        </div>
+
+        {/* Video tutorial */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+            🎥 HƯỚNG DẪN LẤY API KEY
+          </div>
+          <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--border)", background: "#000" }}>
+            <video
+              src="https://www.luonghaianhchemcnt.edu.vn/wp-content/uploads/2025/12/Huong-dan-lay-APIKEY.mp4"
+              controls
+              preload="none"
+              style={{ width: "100%", maxHeight: 200, display: "block" }}
+            />
+          </div>
+          <a
+            href="https://aistudio.google.com/app/apikey"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              marginTop: 8, padding: "9px 12px", borderRadius: 8,
+              background: "linear-gradient(135deg, rgba(56,139,253,.2), rgba(163,113,247,.2))",
+              border: "1px solid rgba(56,139,253,.35)",
+              color: "var(--accent-blue)", textDecoration: "none",
+              fontSize: 12, fontWeight: 700, transition: "all .15s",
+            }}
+          >
+            🔑 Lấy API Key miễn phí tại Google AI Studio ↗
+          </a>
         </div>
 
         {/* Test result */}

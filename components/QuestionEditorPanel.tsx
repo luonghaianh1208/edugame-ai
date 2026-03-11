@@ -3,7 +3,8 @@
 import { useState, useRef } from "react";
 import {
   Plus, Trash2, Edit3, Check, X, FileSpreadsheet,
-  Upload, FileText, RefreshCw, ChevronDown, ChevronUp, Loader2
+  Upload, FileText, RefreshCw, ChevronDown, ChevronUp, Loader2,
+  CheckSquare, Square, SquareCheck
 } from "lucide-react";
 import { GameQuestion, TemplateId, TEMPLATES } from "@/lib/templates/types";
 import * as XLSX from "xlsx";
@@ -37,10 +38,13 @@ const DEFAULT_NAMES = ["Người chơi 1", "Người chơi 2", "Người chơi 3
 const PLAYER_NAME_FIELDS: (keyof EditorSettings)[] = ["player1Name", "player2Name", "player3Name", "player4Name"];
 
 // ── Question Card ──────────────────────────────────────────────
-function QuestionCard({ q, idx, onUpdate, onDelete }: {
+function QuestionCard({ q, idx, onUpdate, onDelete, selectMode, selected, onToggleSelect }: {
   q: GameQuestion; idx: number;
   onUpdate: (q: GameQuestion) => void;
   onDelete: () => void;
+  selectMode: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -77,10 +81,24 @@ function QuestionCard({ q, idx, onUpdate, onDelete }: {
   }
 
   return (
-    <div style={{ background: "var(--bg-tertiary)", borderRadius: 9, border: "1px solid var(--border)", overflow: "hidden" }}>
-      <div onClick={() => setExpanded(e => !e)}
+    <div
+      style={{
+        background: selected ? "rgba(99,102,241,.12)" : "var(--bg-tertiary)",
+        borderRadius: 9,
+        border: `1px solid ${selected ? "rgba(99,102,241,.5)" : "var(--border)"}`,
+        overflow: "hidden",
+        transition: "all .15s",
+      }}
+    >
+      <div onClick={() => selectMode ? onToggleSelect() : setExpanded(e => !e)}
         style={{ padding: "7px 10px", display: "flex", alignItems: "flex-start", gap: 7, cursor: "pointer", userSelect: "none" }}>
-        <span style={{ minWidth: 20, height: 20, borderRadius: 5, background: "rgba(99,102,241,.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "var(--accent-blue)", flexShrink: 0 }}>{idx + 1}</span>
+        {selectMode ? (
+          <span style={{ flexShrink: 0, color: selected ? "var(--accent-blue)" : "var(--text-muted)", display: "flex", alignItems: "center", paddingTop: 1 }}>
+            {selected ? <SquareCheck size={16} /> : <Square size={16} />}
+          </span>
+        ) : (
+          <span style={{ minWidth: 20, height: 20, borderRadius: 5, background: "rgba(99,102,241,.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "var(--accent-blue)", flexShrink: 0 }}>{idx + 1}</span>
+        )}
         <span style={{ flex: 1, fontSize: 12, color: "var(--text-primary)", lineHeight: 1.4 }}>{q.q}</span>
         <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
           <button onClick={e => { e.stopPropagation(); setEditing(true); setExpanded(false); }}
@@ -121,6 +139,8 @@ export default function QuestionEditorPanel({
   const [questions, setQuestions] = useState<GameQuestion[]>(initialQuestions);
   const [wordLoading, setWordLoading] = useState(false);
   const [importError, setImportError] = useState("");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedSet, setSelectedSet] = useState<Set<number>>(new Set());
 
   const excelRef = useRef<HTMLInputElement>(null);
   const wordRef = useRef<HTMLInputElement>(null);
@@ -137,6 +157,27 @@ export default function QuestionEditorPanel({
 
   function updateQ(idx: number, q: GameQuestion) { setQuestions(qs => qs.map((x, i) => i === idx ? q : x)); }
   function deleteQ(idx: number) { setQuestions(qs => qs.filter((_, i) => i !== idx)); }
+
+  function toggleSelectMode() {
+    setSelectMode(v => !v);
+    setSelectedSet(new Set());
+  }
+  function toggleSelect(idx: number) {
+    setSelectedSet(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  }
+  function selectAll() {
+    if (selectedSet.size === questions.length) setSelectedSet(new Set());
+    else setSelectedSet(new Set(questions.map((_, i) => i)));
+  }
+  function deleteSelected() {
+    setQuestions(qs => qs.filter((_, i) => !selectedSet.has(i)));
+    setSelectedSet(new Set());
+    setSelectMode(false);
+  }
   function addBlank() {
     const newQ: GameQuestion = { q: "Câu hỏi mới... (click ✏️ để chỉnh sửa)", answers: ["Đáp án A", "Đáp án B", "Đáp án C", "Đáp án D"], correct: 0, explain: "" };
     setQuestions(qs => [...qs, newQ]);
@@ -253,7 +294,23 @@ export default function QuestionEditorPanel({
           </span>
           Câu Hỏi & Cài Đặt
         </div>
-        <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600 }}>{questions.length} câu</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {questions.length > 0 && (
+            <button
+              onClick={toggleSelectMode}
+              style={{
+                padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                border: `1px solid ${selectMode ? "rgba(239,68,68,.5)" : "rgba(99,102,241,.4)"}`,
+                background: selectMode ? "rgba(239,68,68,.12)" : "rgba(99,102,241,.1)",
+                color: selectMode ? "#f87171" : "var(--accent-blue)",
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              {selectMode ? <><X size={10} /> Thoát</> : <><CheckSquare size={10} /> Chọn</>}
+            </button>
+          )}
+          <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600 }}>{questions.length} câu</span>
+        </div>
       </div>
 
       {/* Scrollable body */}
@@ -360,14 +417,41 @@ export default function QuestionEditorPanel({
         )}
 
         {/* Question list */}
+        {selectMode && questions.length > 0 && (
+          <div style={{ padding: "0 10px 6px", display: "flex", alignItems: "center", gap: 8 }}>
+            <button onClick={selectAll}
+              style={{ fontSize: 10, color: "var(--accent-blue)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontWeight: 700 }}>
+              {selectedSet.size === questions.length ? "Boỏ chọn tất cả" : "Chọn tất cả"}
+            </button>
+            <span style={{ fontSize: 10, color: "var(--text-muted)" }}>• Đả chọn: {selectedSet.size}</span>
+          </div>
+        )}
         <div style={{ padding: "0 10px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
           {questions.map((q, idx) => (
             <QuestionCard key={idx} q={q} idx={idx}
+              selectMode={selectMode}
+              selected={selectedSet.has(idx)}
+              onToggleSelect={() => toggleSelect(idx)}
               onUpdate={nq => updateQ(idx, nq)}
               onDelete={() => deleteQ(idx)} />
           ))}
         </div>
       </div>
+
+      {/* Bulk delete bar (shown when items selected in selectMode) */}
+      {selectMode && selectedSet.size > 0 && (
+        <div style={{
+          padding: "7px 10px", borderTop: "1px solid rgba(239,68,68,.25)",
+          background: "rgba(239,68,68,.08)", display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
+        }}>
+          <span style={{ flex: 1, fontSize: 11, color: "#f87171", fontWeight: 600 }}>Xoá {selectedSet.size} câu đã chọn?</span>
+          <button onClick={() => setSelectedSet(new Set())}
+            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--text-muted)", cursor: "pointer", fontSize: 11 }}>Huỷ</button>
+          <button onClick={deleteSelected}
+            style={{ padding: "5px 10px", borderRadius: 6, border: "none", background: "#dc2626", color: "white", cursor: "pointer", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
+            <Trash2 size={11} /> Xoá {selectedSet.size} câu</button>
+        </div>
+      )}
 
       {/* Apply button */}
       <div style={{ padding: "8px 10px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
