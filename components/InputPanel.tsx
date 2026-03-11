@@ -23,25 +23,25 @@ interface InputPanelProps {
 }
 
 const DIFFICULTIES = [
-  { value: "easy",   label: "😊 Dễ",         color: "#3fb950" },
-  { value: "medium", label: "🔥 Trung bình",  color: "#d29922" },
-  { value: "hard",   label: "💀 Khó",          color: "#f85149" },
+  { value: "easy", label: "😊 Dễ", color: "#3fb950" },
+  { value: "medium", label: "🔥 Trung bình", color: "#d29922" },
+  { value: "hard", label: "💀 Khó", color: "#f85149" },
 ];
 
 const Q_COUNTS = [5, 8, 10, 12, 15, 20];
 
 export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps) {
-  const [topic,         setTopic]         = useState("");
-  const [templateId,    setTemplateId]    = useState<TemplateId>("rpg-battle");
+  const [topic, setTopic] = useState("");
+  const [templateId, setTemplateId] = useState<TemplateId>("rpg-battle");
   const [questionCount, setQuestionCount] = useState(10);
-  const [difficulty,    setDifficulty]    = useState("medium");
-  const [useTimer,      setUseTimer]      = useState(true);
-  const [useScoring,    setUseScoring]    = useState(true);
-  const [rewardPenalty, setRewardPenalty] = useState<"none"|"points"|"time"|"both">("points");
-  const [showSettings,  setShowSettings]  = useState(false);
-  const [playerMode,    setPlayerMode]    = useState<"1p"|"2p">("1p");
-  const [player1Name,   setPlayer1Name]   = useState("Người chơi 1");
-  const [player2Name,   setPlayer2Name]   = useState("Người chơi 2");
+  const [difficulty, setDifficulty] = useState("medium");
+  const [useTimer, setUseTimer] = useState(true);
+  const [useScoring, setUseScoring] = useState(true);
+  const [rewardPenalty, setRewardPenalty] = useState<"none" | "points" | "time" | "both">("points");
+  const [showSettings, setShowSettings] = useState(false);
+  const [playerMode, setPlayerMode] = useState<"1p" | "2p">("1p");
+  const [player1Name, setPlayer1Name] = useState("Người chơi 1");
+  const [player2Name, setPlayer2Name] = useState("Người chơi 2");
 
   const selected = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[7];
 
@@ -78,7 +78,7 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "12px 12px 16px" }}>
 
         {/* Topic */}
-        <div className="form-group">
+        <div className="form-group" id="tour-topic">
           <label className="form-label">
             <BookOpen size={11} /> CHỦ ĐỀ BÀI HỌC
           </label>
@@ -97,7 +97,7 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
         </div>
 
         {/* Template gallery */}
-        <div className="form-group" style={{ marginTop: 14 }}>
+        <div className="form-group" id="tour-template" style={{ marginTop: 14 }}>
           <label className="form-label">
             <Target size={11} /> CHỌN TEMPLATE TRÒ CHƠI
           </label>
@@ -275,7 +275,7 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
               <div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, marginBottom: 5 }}>🎁 THƯỞNG / PHẠT</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
-                  {(["none","points","time","both"] as const).map(v => {
+                  {(["none", "points", "time", "both"] as const).map(v => {
                     const labels = { none: "🚫 Không", points: "⭐ Điểm", time: "⏱️ Thời gian", both: "🎁 Cả hai" };
                     return (
                       <button

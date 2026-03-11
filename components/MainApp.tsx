@@ -7,6 +7,7 @@ import CodePanel from "./CodePanel";
 import PreviewPanel from "./PreviewPanel";
 import QuestionEditorPanel, { EditorSettings } from "./QuestionEditorPanel";
 import ApiKeyModal from "./ApiKeyModal";
+import TourGuide from "./TourGuide";
 import { GameQuestion } from "@/lib/templates/types";
 
 interface Toast {
@@ -228,6 +229,9 @@ export default function MainApp() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Tour guide help button */}
+          <TourGuide autoShow />
+
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
             <div style={{
               width: 8, height: 8, borderRadius: "50%",
@@ -280,7 +284,7 @@ export default function MainApp() {
         </div>
 
         {/* Panel 2: Code or Preview (tabbed) */}
-        <div style={{ flex: midSplit, minWidth: 0, background: "var(--bg-secondary)", overflow: "hidden", position: "relative" }}>
+        <div id="tour-preview" style={{ flex: midSplit, minWidth: 0, background: "var(--bg-secondary)", overflow: "hidden", position: "relative" }}>
           <div style={{ position: "absolute", inset: 0, opacity: activeTab === "code" ? 1 : 0, pointerEvents: activeTab === "code" ? "auto" : "none", zIndex: activeTab === "code" ? 1 : 0 }}>
             <CodePanel code={code} onChange={setCode} isStreaming={isGenerating} />
           </div>
@@ -322,8 +326,8 @@ export default function MainApp() {
           </div>
         </div>
 
-        {/* Panel 4: Question Editor (replaces AI Chat) */}
-        <div style={{ width: rightW, flexShrink: 0, background: "var(--bg-secondary)", overflow: "hidden", display: "flex", flexDirection: "column", minWidth: 0 }}>
+        {/* Panel 4: Question Editor */}
+        <div id="tour-editor" style={{ width: rightW, flexShrink: 0, background: "var(--bg-secondary)", overflow: "hidden", display: "flex", flexDirection: "column", minWidth: 0 }}>
           <QuestionEditorPanel
             questions={currentQuestions}
             editorSettings={editorSettings}

@@ -317,7 +317,7 @@ export default function QuestionEditorPanel({
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
 
         {/* ── Player Settings ── */}
-        <div style={{ padding: "10px 10px 0" }}>
+        <div id="tour-players" style={{ padding: "10px 10px 0" }}>
           <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, letterSpacing: ".05em", marginBottom: 6 }}>👥 SỐ NGƯỜI CHƠI</div>
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
             {PLAYER_COUNTS.map(pc => {
