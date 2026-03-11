@@ -4,10 +4,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { HelpCircle, X, ChevronRight, ChevronLeft } from "lucide-react";
 
 interface TourStep {
-  target: string;       // element ID to spotlight
+  target: string;
   title: string;
   desc: string;
-  position?: "top" | "bottom" | "left" | "right"; // tooltip side preference
+  position?: "top" | "bottom" | "left" | "right";
 }
 
 const TOUR_STEPS: TourStep[] = [
@@ -49,80 +49,95 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
-const PAD = 12; // spotlight padding around element
+const PAD = 12;
 const TOOLTIP_W = 300;
+const TOOLTIP_H_ESTIMATE = 190;
+const MAX_RETRIES = 6;
+const RETRY_DELAY = 80; // ms between retries
 
-interface Rect { x: number; y: number; width: number; height: number; }
+interface SpotlightRect { x: number; y: number; width: number; height: number; }
 
-function getRect(id: string): Rect | null {
+/** Try to find element and return its viewport rect, clamped for SVG */
+function getElementRect(id: string): SpotlightRect | null {
   const el = document.getElementById(id);
   if (!el) return null;
   const r = el.getBoundingClientRect();
-  return { x: r.left - PAD, y: r.top - PAD, width: r.width + PAD * 2, height: r.height + PAD * 2 };
+  if (r.width === 0 && r.height === 0) return null; // hidden/collapsed
+  return {
+    x: Math.max(0, r.left - PAD),
+    y: Math.max(0, r.top - PAD),
+    width: r.width + PAD * 2,
+    height: r.height + PAD * 2,
+  };
 }
 
-function Tooltip({ step, rect, current, total, onNext, onPrev, onClose }: {
-  step: TourStep; rect: Rect; current: number; total: number;
-  onNext: () => void; onPrev: () => void; onClose: () => void;
-}) {
+/** Returns a centred fallback rect so tour never goes blank */
+function centreRect(): SpotlightRect {
+  if (typeof window === "undefined") return { x: 400, y: 300, width: 400, height: 60 };
   const vw = window.innerWidth;
   const vh = window.innerHeight;
+  const w = 400, h = 60;
+  return { x: vw / 2 - w / 2, y: vh / 2 - h / 2, width: w, height: h };
+}
+
+// ── Tooltip ─────────────────────────────────────────────────────
+function Tooltip({ step, rect, current, total, onNext, onPrev, onClose }: {
+  step: TourStep; rect: SpotlightRect; current: number; total: number;
+  onNext: () => void; onPrev: () => void; onClose: () => void;
+}) {
+  const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 800;
   const prefer = step.position || "bottom";
 
-  // Compute tooltip position
   let top = 0, left = 0;
-  const TH = 160; // estimated tooltip height
 
-  if (prefer === "right" || (prefer === "bottom" && rect.x + rect.width + TOOLTIP_W + 16 < vw)) {
-    // right side
+  if (prefer === "right") {
     left = rect.x + rect.width + 16;
-    top = rect.y + rect.height / 2 - TH / 2;
+    top = rect.y + rect.height / 2 - TOOLTIP_H_ESTIMATE / 2;
   } else if (prefer === "left") {
     left = rect.x - TOOLTIP_W - 16;
-    top = rect.y + rect.height / 2 - TH / 2;
+    top = rect.y + rect.height / 2 - TOOLTIP_H_ESTIMATE / 2;
   } else if (prefer === "top") {
     left = rect.x + rect.width / 2 - TOOLTIP_W / 2;
-    top = rect.y - TH - 16;
+    top = rect.y - TOOLTIP_H_ESTIMATE - 16;
   } else {
-    // bottom (default)
     left = rect.x + rect.width / 2 - TOOLTIP_W / 2;
     top = rect.y + rect.height + 16;
   }
 
-  // Clamp to viewport
-  left = Math.max(12, Math.min(left, vw - TOOLTIP_W - 12));
-  top = Math.max(12, Math.min(top, vh - TH - 12));
+  // Overflow guards — push back into viewport
+  if (left + TOOLTIP_W > vw - 8) left = rect.x - TOOLTIP_W - 16;
+  if (left < 8) left = rect.x + rect.width + 16;
+  left = Math.max(8, Math.min(left, vw - TOOLTIP_W - 8));
+  top = Math.max(8, Math.min(top, vh - TOOLTIP_H_ESTIMATE - 8));
 
   return (
-    <div style={{
-      position: "fixed",
-      top,
-      left,
-      width: TOOLTIP_W,
-      zIndex: 10002,
-      background: "linear-gradient(135deg, #1e293b, #0f172a)",
-      border: "1px solid rgba(99,102,241,.6)",
-      borderRadius: 16,
-      padding: "18px 18px 14px",
-      boxShadow: "0 20px 60px rgba(0,0,0,.8), 0 0 0 1px rgba(99,102,241,.2)",
-      animation: "tour-fade 0.25s ease",
-    }}>
-      {/* Step counter */}
+    <div
+      style={{
+        position: "fixed", top, left, width: TOOLTIP_W, zIndex: 10010,
+        background: "linear-gradient(135deg, #1e293b, #0f172a)",
+        border: "1px solid rgba(99,102,241,.6)", borderRadius: 16,
+        padding: "18px 18px 14px",
+        boxShadow: "0 20px 60px rgba(0,0,0,.85), 0 0 0 1px rgba(99,102,241,.2)",
+        animation: "tour-fade 0.2s ease",
+        pointerEvents: "auto",
+      }}
+      // stop click from bubbling to overlay
+      onClick={e => e.stopPropagation()}
+    >
+      {/* Step counter + dots */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <span style={{
           fontSize: 10, fontWeight: 800, letterSpacing: ".08em",
-          color: "var(--accent-blue)", background: "rgba(99,102,241,.15)",
-          border: "1px solid rgba(99,102,241,.3)", borderRadius: 20,
-          padding: "3px 10px",
+          color: "#818cf8", background: "rgba(99,102,241,.18)",
+          border: "1px solid rgba(99,102,241,.35)", borderRadius: 20, padding: "3px 10px",
         }}>
           BƯỚC {current}/{total}
         </span>
-        {/* Progress dots */}
         <div style={{ display: "flex", gap: 4 }}>
           {Array.from({ length: total }).map((_, i) => (
             <div key={i} style={{
-              width: i === current - 1 ? 14 : 6, height: 6,
-              borderRadius: 3,
+              width: i === current - 1 ? 14 : 6, height: 6, borderRadius: 3,
               background: i === current - 1 ? "#6366f1" : "rgba(255,255,255,.15)",
               transition: "all .25s",
             }} />
@@ -130,26 +145,18 @@ function Tooltip({ step, rect, current, total, onNext, onPrev, onClose }: {
         </div>
       </div>
 
-      {/* Title */}
-      <div style={{ fontSize: 14, fontWeight: 800, color: "#f1f5f9", marginBottom: 8, lineHeight: 1.3 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, color: "#f1f5f9", marginBottom: 8, lineHeight: 1.35 }}>
         {step.title}
       </div>
-
-      {/* Description */}
-      <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.6, marginBottom: 14 }}>
+      <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.65, marginBottom: 14 }}>
         {step.desc}
       </div>
 
-      {/* Buttons */}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <button
-          onClick={onClose}
-          style={{
-            fontSize: 11, color: "#475569", background: "none", border: "none",
-            cursor: "pointer", padding: "5px 0", marginRight: "auto",
-            textDecoration: "underline",
-          }}
-        >Bỏ qua</button>
+        <button onClick={onClose} style={{
+          fontSize: 11, color: "#475569", background: "none", border: "none",
+          cursor: "pointer", padding: "5px 0", marginRight: "auto", textDecoration: "underline",
+        }}>Bỏ qua</button>
 
         {current > 1 && (
           <button onClick={onPrev} style={{
@@ -178,80 +185,86 @@ function Tooltip({ step, rect, current, total, onNext, onPrev, onClose }: {
   );
 }
 
-interface TourGuideProps {
-  autoShow?: boolean;
-}
-
-export default function TourGuide({ autoShow = true }: TourGuideProps) {
+// ── Main Component ───────────────────────────────────────────────
+export default function TourGuide({ autoShow = true }: { autoShow?: boolean }) {
   const [active, setActive] = useState(false);
   const [step, setStep] = useState(0);
-  const [rect, setRect] = useState<Rect | null>(null);
-  const [vw, setVw] = useState(0);
-  const [vh, setVh] = useState(0);
-  const rafRef = useRef<number | null>(null);
+  const [rect, setRect] = useState<SpotlightRect>(centreRect());
+  const [vwvh, setVwvh] = useState({ vw: 1200, vh: 800 });
+  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const updateRect = useCallback((stepIdx: number) => {
+  // Initialise vw/vh on client
+  useEffect(() => {
+    setVwvh({ vw: window.innerWidth, vh: window.innerHeight });
+  }, []);
+
+  // ── Robust rect resolver: retries up to MAX_RETRIES times ──────
+  const resolveRect = useCallback((stepIdx: number, attempt = 0) => {
+    if (retryRef.current) clearTimeout(retryRef.current);
+
     const target = TOUR_STEPS[stepIdx]?.target;
     if (!target) return;
-    const r = getRect(target);
-    setRect(r);
-    setVw(window.innerWidth);
-    setVh(window.innerHeight);
+
+    const r = getElementRect(target);
+    if (r) {
+      setRect(r);
+      setVwvh({ vw: window.innerWidth, vh: window.innerHeight });
+    } else if (attempt < MAX_RETRIES) {
+      // Retry after a short delay
+      retryRef.current = setTimeout(() => resolveRect(stepIdx, attempt + 1), RETRY_DELAY);
+    } else {
+      // After all retries, use a centred fallback but keep tour alive
+      setRect(centreRect());
+      setVwvh({ vw: window.innerWidth, vh: window.innerHeight });
+    }
   }, []);
 
   const startTour = useCallback(() => {
     setStep(0);
     setActive(true);
-    setTimeout(() => updateRect(0), 50);
-  }, [updateRect]);
+    // Small delay to let React commit the DOM
+    setTimeout(() => resolveRect(0), 80);
+  }, [resolveRect]);
 
   // Auto-show on first visit
   useEffect(() => {
     if (!autoShow) return;
-    const done = localStorage.getItem("edugame_tour_done");
-    if (!done) {
-      const t = setTimeout(() => startTour(), 800);
+    if (!localStorage.getItem("edugame_tour_done")) {
+      const t = setTimeout(startTour, 900);
       return () => clearTimeout(t);
     }
   }, [autoShow, startTour]);
 
-  // Update rect on resize
+  // Resolve rect every time step changes
   useEffect(() => {
     if (!active) return;
-    const onResize = () => updateRect(step);
+    resolveRect(step);
+    return () => { if (retryRef.current) clearTimeout(retryRef.current); };
+  }, [active, step, resolveRect]);
+
+  // Update on resize
+  useEffect(() => {
+    if (!active) return;
+    const onResize = () => resolveRect(step);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [active, step, updateRect]);
-
-  // Animate rect update when step changes
-  useEffect(() => {
-    if (!active) return;
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(() => updateRect(step));
-  }, [active, step, updateRect]);
+  }, [active, step, resolveRect]);
 
   function goNext() {
-    if (step >= TOUR_STEPS.length - 1) {
-      closeTour();
-    } else {
-      setStep(s => s + 1);
-    }
+    if (step >= TOUR_STEPS.length - 1) closeTour();
+    else setStep(s => s + 1);
   }
-
-  function goPrev() {
-    if (step > 0) setStep(s => s - 1);
-  }
-
+  function goPrev() { if (step > 0) setStep(s => s - 1); }
   function closeTour() {
     setActive(false);
+    if (retryRef.current) clearTimeout(retryRef.current);
     localStorage.setItem("edugame_tour_done", "1");
   }
 
   return (
     <>
-      {/* Help button — always visible in top-right of navbar (rendered externally via portal concept) */}
+      {/* Help button */}
       <button
-        id="tour-help-btn"
         onClick={startTour}
         title="Hướng dẫn sử dụng"
         style={{
@@ -273,22 +286,21 @@ export default function TourGuide({ autoShow = true }: TourGuideProps) {
         <HelpCircle size={13} /> Hướng dẫn
       </button>
 
-      {/* Tour overlay */}
-      {active && rect && (
+      {/* Tour overlay — only mounted when active, never gated by rect */}
+      {active && (
         <>
-          {/* SVG dark overlay with spotlight hole */}
+          {/* SVG spotlight */}
           <svg
             style={{
-              position: "fixed", inset: 0, zIndex: 10001,
+              position: "fixed", inset: 0, zIndex: 10005,
               width: "100vw", height: "100vh",
               pointerEvents: "none",
-              transition: "all .3s ease",
             }}
-            width={vw} height={vh}
+            width={vwvh.vw} height={vwvh.vh}
           >
             <defs>
-              <mask id="tour-mask">
-                <rect width="100%" height="100%" fill="white" />
+              <mask id="tour-mask" maskUnits="userSpaceOnUse">
+                <rect width={vwvh.vw} height={vwvh.vh} fill="white" />
                 <rect
                   x={rect.x} y={rect.y}
                   width={rect.width} height={rect.height}
@@ -297,13 +309,11 @@ export default function TourGuide({ autoShow = true }: TourGuideProps) {
                 />
               </mask>
             </defs>
-            {/* Dark overlay with hole */}
             <rect
-              width="100%" height="100%"
+              width={vwvh.vw} height={vwvh.vh}
               fill="rgba(4,7,18,0.82)"
               mask="url(#tour-mask)"
             />
-            {/* Glowing border around spotlight */}
             <rect
               x={rect.x} y={rect.y}
               width={rect.width} height={rect.height}
@@ -316,29 +326,31 @@ export default function TourGuide({ autoShow = true }: TourGuideProps) {
             />
           </svg>
 
-          {/* Click outside to close */}
+          {/* Overlay click-catcher — behind tooltip */}
           <div
-            style={{ position: "fixed", inset: 0, zIndex: 10000, cursor: "pointer" }}
+            style={{ position: "fixed", inset: 0, zIndex: 10006, cursor: "default" }}
             onClick={closeTour}
           />
 
-          {/* Tooltip */}
-          <Tooltip
-            step={TOUR_STEPS[step]}
-            rect={rect}
-            current={step + 1}
-            total={TOUR_STEPS.length}
-            onNext={goNext}
-            onPrev={goPrev}
-            onClose={closeTour}
-          />
+          {/* Tooltip (higher z-index, stopPropagation inside) */}
+          <div style={{ position: "fixed", inset: 0, zIndex: 10007, pointerEvents: "none" }}>
+            <Tooltip
+              step={TOUR_STEPS[step]}
+              rect={rect}
+              current={step + 1}
+              total={TOUR_STEPS.length}
+              onNext={goNext}
+              onPrev={goPrev}
+              onClose={closeTour}
+            />
+          </div>
 
-          {/* Close X button */}
+          {/* Close × */}
           <button
             onClick={closeTour}
             style={{
-              position: "fixed", top: 12, right: 12, zIndex: 10003,
-              background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)",
+              position: "fixed", top: 12, right: 12, zIndex: 10008,
+              background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.15)",
               borderRadius: "50%", width: 32, height: 32,
               display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer", color: "#94a3b8",
@@ -351,7 +363,7 @@ export default function TourGuide({ autoShow = true }: TourGuideProps) {
 
       <style>{`
         @keyframes tour-fade {
-          from { opacity: 0; transform: translateY(8px) scale(.97); }
+          from { opacity: 0; transform: translateY(6px) scale(.96); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
