@@ -325,6 +325,7 @@ export default function MainApp() {
             questions={currentQuestions}
             editorSettings={editorSettings}
             isApplying={isApplying}
+            apiKey={apiKey}
             onApply={handleApplyToGame}
             onSettingsChange={setEditorSettings}
           />
