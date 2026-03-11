@@ -325,3 +325,48 @@ select.input-field option {
   overflow-y: auto;
   overflow-x: hidden;
 }
+
+/* ── Responsive / Mobile ─────────────────────────────────────── */
+
+/* Touch-friendly minimum tap targets */
+@media (max-width: 1099px) {
+  button, [role="button"] {
+    min-height: 36px;
+  }
+}
+
+/* Mobile: toast sits above bottom nav */
+@media (max-width: 767px) {
+  .toast {
+    bottom: 70px;
+    right: 12px;
+    left: 12px;
+    right: 12px;
+    text-align: center;
+  }
+  /* Smaller scrollbars on touch */
+  ::-webkit-scrollbar { width: 3px; height: 3px; }
+  /* font size bump for readability */
+  html, body { font-size: 13px; }
+}
+
+/* Tablet: toast normal, slightly adjusted */
+@media (min-width: 768px) and (max-width: 1099px) {
+  .toast { bottom: 20px; right: 16px; }
+}
+
+/* Drawer backdrop fade-in */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Make dvh work on older browsers */
+@supports not (height: 100dvh) {
+  .dvh-fix { height: 100vh; height: -webkit-fill-available; }
+}
+
+/* iOS momentum scrolling */
+.scroll-area, [style*="overflow-y: auto"] {
+  -webkit-overflow-scrolling: touch;
+}
