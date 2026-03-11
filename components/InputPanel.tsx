@@ -309,8 +309,9 @@ export default function InputPanel({ onGenerate, isGenerating }: InputPanelProps
       </div>
 
       {/* Generate button */}
-      <div style={{ padding: "10px 12px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
+      <div id="tour-generate" style={{ padding: "10px 12px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
         <button
+          id="tour-generate-btn"
           onClick={handleGenerate}
           disabled={!canGenerate}
           style={{
